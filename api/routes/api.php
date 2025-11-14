@@ -9,7 +9,7 @@ use App\Http\Controllers\GameMatchController;
 Route::post('/login', [AuthController::class, 'login']);
 
 Route::middleware('auth:sanctum')->group(function () {
-    Route::get('/users', function (Request $request) {
+    Route::get('/users/me', function (Request $request) {
         return $request->user();
     });
     Route::post('logout', [AuthController::class, 'logout']);
