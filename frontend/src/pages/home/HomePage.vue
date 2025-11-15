@@ -2,45 +2,63 @@
   <div class="flex flex-row justify-center items-stretch gap-5 mt-10">
     <Card class="w-full max-w-md">
       <CardHeader>
-        <CardTitle class="text-3xl font-bold text-center">
+        <CardTitle class="text-3xl text-black-500 font-bold text-center">
           Single Player
         </CardTitle>
-        <CardDescription class="text-center">
-          Test your memory by finding matching pairs!
+        <CardDescription class="text-center text-purple-600">
+          Play alone against a bot!
         </CardDescription>
       </CardHeader>
       <CardContent class="space-y-6">
-        <div class="space-y-2">
-          <label class="text-sm font-medium">Choose Difficulty</label>
-          <div class="grid grid-cols-3 gap-2">
-            <!-- TODO: Add Difficulty Choice functionality -->
-          </div>
-        </div>
-        <div class="space-y-2">
-          <label class="text-sm font-medium">High Scores (local)</label>
-          <!-- TODO: Add High Scores functionality -->
-        </div>
-
-        <div class="flex justify-center">
+        <div class="flex justify-center gap-4">
           <Button
             @click="startSinglePlayerGame"
             size="lg"
             variant="secondary"
-            class="hover:bg-purple-500 hover:text-slate-200"
+            class="hover:bg-purple-500 hover:text-slate-100"
           >
             Start Game
+          </Button>
+          <Button
+            @click="startSinglePlayerGame"
+            size="lg"
+            variant="secondary"
+            class="hover:bg-purple-500 hover:text-slate-100"
+          >
+            Start Match
           </Button>
         </div>
       </CardContent>
     </Card>
     <Card class="w-full max-w-md">
       <CardHeader>
-        <CardTitle class="text-3xl font-bold text-center">
-          MultiPlayer
+        <CardTitle class="text-3xl text-black-500 font-bold text-center">
+          Multi Player
         </CardTitle>
-        <CardDescription class="text-center"> Comming Soon!! </CardDescription>
+        <CardDescription class="text-center text-purple-600">
+          Play alone against other player!
+        </CardDescription>
       </CardHeader>
-      <CardContent class="space-y-6"> </CardContent>
+      <CardContent class="space-y-6">
+        <div class="flex justify-center gap-4">
+          <Button
+            @click="startSinglePlayerGame"
+            size="lg"
+            variant="secondary"
+            class="hover:bg-purple-500 hover:text-slate-100"
+          >
+            Start Game
+          </Button>
+          <Button
+            @click="startSinglePlayerGame"
+            size="lg"
+            variant="secondary"
+            class="hover:bg-purple-500 hover:text-slate-100"
+          >
+            Start Match
+          </Button>
+        </div>
+      </CardContent>
     </Card>
   </div>
 </template>

@@ -2,7 +2,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import AboutPage from '../pages/about/AboutPage.vue'
 import HomePage from '../pages/home/HomePage.vue'
-import SinglePlayerGamePage from '@/pages/game/SinglePlayerGamePage.vue'
+import SinglePlayerGamePage from '../pages/game/SinglePlayerGamePage.vue'
+import LoginPage from '../pages/login/LoginPage.vue'
 
 
 const router = createRouter({
@@ -31,6 +32,11 @@ const router = createRouter({
       // this generates a separate chunk (About.[hash].js) for this route
       // which is lazy-loaded when the route is visited.
     },
+    {
+      path: '/login',
+      name: 'login',
+      component: LoginPage,
+    }
   ],
 })
 
