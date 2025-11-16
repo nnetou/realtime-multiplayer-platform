@@ -14,11 +14,13 @@ class AuthController extends Controller
             'email' => 'required|email',
             'password' => 'required',
         ]);
+        
         if (!Auth::attempt($request->only('email', 'password'))) {
-            throw ValidationException::withMessages([
-                'email' => ['The provided credentials are incorrect.'],
-            ]);
+            return response()->json([
+                'error' => 'The provided credentials are incorrect.'
+            ], 401);
         }
+        
         $user = Auth::user();
         $token = $user->createToken('auth-token')->plainTextToken;
 
@@ -26,6 +28,7 @@ class AuthController extends Controller
             'token' => $token,
         ]);
     }
+    
     public function logout(Request $request)
     {
         $request->user()->currentAccessToken()->delete();

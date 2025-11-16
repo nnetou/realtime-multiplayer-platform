@@ -62,4 +62,9 @@ class GameMatch extends Model
     {
         return $this->belongsTo(User::class, 'loser_user_id');
     }
+
+    public function games()
+    {
+        return $this->hasMany(Game::class, 'match_id');
+    }
 }
