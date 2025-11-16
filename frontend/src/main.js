@@ -6,6 +6,8 @@ import App from './App.vue'
 
 import router from './router'
 
+import { useAuthStore } from './stores/auth.js'
+
 
 const API_BASE_URL = 'http://localhost:8000/api'
 
@@ -19,3 +21,6 @@ app.use(createPinia())
 app.use(router)
 
 app.mount('#app')
+
+const authStore = useAuthStore()
+await authStore.restoreUser()
