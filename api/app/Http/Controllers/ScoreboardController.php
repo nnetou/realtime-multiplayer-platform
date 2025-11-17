@@ -43,18 +43,25 @@ class ScoreboardController extends Controller
 
     public function global()
     {
-        return [
-            'most_wins' => User::withCount(['wonMatches'])
-                ->orderBy('won_matches_count', 'desc')
-                ->take(10)
-                ->get(),
+         return [
+            'most_wins' => User::withCount(['matchesWon'])
+                ->orderByDesc('matches_won_count')
+                ->take(5)
+                ->get(['id','name','nickname','matches_won_count']),
 
-            'best_winrate' => User::all()->sortByDesc(fn($u) => $u->winrate())->take(10),
+            'best_winrate' => User::all()
+                ->sortByDesc(fn($u) => $u->winrate())
+                ->take(5)
+                ->values(),
 
-            'most_points' => User::withSum('matches as total_points', 'player1_points')
+            'most_points' => User::withSum([
+                'matchesWon as total_points' => function ($q) {
+                    $q->selectRaw('SUM(player1_points + player2_points)');
+                }
+            ], 'total_points')
                 ->orderByDesc('total_points')
-                ->take(10)
-                ->get(),
+                ->take(5)
+                ->get(['id','name','nickname','total_points']),
         ];
     }
 }

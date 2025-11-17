@@ -8,7 +8,6 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Models\GameMatch;
 
 class User extends Authenticatable
 {
@@ -38,53 +37,43 @@ class User extends Authenticatable
         'custom'            => 'array',
     ];
 
-    // Relações existentes
+
     public function matchesAsPlayer1()
     {
-        return $this->hasMany(GameMatch::class, 'player1_user_id');
+        return $this->hasMany(Game::class, 'player1_user_id');
     }
 
     public function matchesAsPlayer2()
     {
-        return $this->hasMany(GameMatch::class, 'player2_user_id');
+        return $this->hasMany(Game::class, 'player2_user_id');
     }
 
     public function matchesWon()
     {
-        return $this->hasMany(GameMatch::class, 'winner_user_id');
+        return $this->hasMany(Game::class, 'winner_user_id');
     }
 
     public function matchesLost()
     {
-        return $this->hasMany(GameMatch::class, 'loser_user_id');
+        return $this->hasMany(Game::class, 'loser_user_id');
     }
 
-    public function isAdmin(): bool
-    {
-        return $this->type === 'A';
-    }
-
-
-    // Junta todos os matches (onde é player1 ou player2)
     public function allMatches()
     {
-        return GameMatch::where('player1_user_id', $this->id)
+        return Game::where('player1_user_id', $this->id)
             ->orWhere('player2_user_id', $this->id);
     }
 
-    // Número total de vitórias (já tens matchesWon, isto só devolve contagem)
     public function winsCount()
     {
         return $this->matchesWon()->count();
     }
 
-    // Número total de derrotas
     public function lossesCount()
     {
         return $this->matchesLost()->count();
     }
 
-    // Winrate (%) calculado automaticamente
     public function winrate()
     {
         $total = $this->allMatches()->count();
@@ -93,7 +82,6 @@ class User extends Authenticatable
         return round(($this->winsCount() / $total) * 100, 2);
     }
 
-    // Conta quantos “capotes” o player deu (4-0)
     public function capoteCount()
     {
         return $this->matchesWon()
@@ -105,7 +93,6 @@ class User extends Authenticatable
             })->count();
     }
 
-    // Bandeira = 4-1 (ou 4-2, depende da tua regra, ajustamos se quiseres)
     public function bandeiraCount()
     {
         return $this->matchesWon()
@@ -115,5 +102,10 @@ class User extends Authenticatable
                       $q2->where('player2_points', 4)->where('player1_points', 1);
                   });
             })->count();
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->type === 'A';
     }
 }
