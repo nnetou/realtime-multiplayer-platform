@@ -1,4 +1,22 @@
 <template>
+  <div
+    class="text-3xl font-bold flex flex-row justify-center"
+    v-if="authStore.currentUser"
+  >
+    Welcome, &nbsp;
+    <div class="text-purple-500">
+      {{ authStore.currentUser?.name }}
+    </div>
+  </div>
+  <div
+    class="font-bold text-3xl flex flex-row justify-center"
+    v-if="authStore.currentUser"
+  >
+    Coins: &nbsp;
+    <div class="text-purple-500">
+      {{ authStore.currentUser?.coins_balance }}
+    </div>
+  </div>
   <div class="flex flex-row justify-center items-stretch gap-5 mt-10">
     <Card class="w-full max-w-md">
       <CardHeader>
@@ -30,6 +48,7 @@
         </div>
       </CardContent>
     </Card>
+    <!-- Atenção que este só pode aparecer se estiver logado! -->
     <Card class="w-full max-w-md">
       <CardHeader>
         <CardTitle class="text-3xl text-black-500 font-bold text-center">
@@ -73,9 +92,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useRouter, useRoute } from "vue-router";
+import { useAuthStore } from "@/stores/auth.js";
 
 const router = useRouter();
 const route = useRoute();
+const authStore = useAuthStore();
 
 const startSinglePlayerGame = () => {
   console.log("Starting Single Player Game...");

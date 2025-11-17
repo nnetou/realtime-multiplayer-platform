@@ -9,7 +9,7 @@
         >
           Sign in to your account
         </h2>
-        <p class="mt-2 text-center text-sm text-gray-600">
+        <p class="mt-2 text-center text-sm text-purple-600">
           Enter your credentials to access your account
         </p>
       </div>
@@ -57,7 +57,7 @@
 
         <div class="text-center text-sm">
           <span class="text-gray-600">Don't have an account? </span>
-          <a href="#" class="font-medium text-blue-600 hover:text-blue-500">
+          <a href="#" class="font-medium text-purple-600 hover:text-purple-500">
             Sign up
           </a>
         </div>
@@ -90,8 +90,13 @@ const handleSubmit = async () => {
     success: (data) => {
       return `Login Sucessfull - ${data?.name}`;
     },
-    error: (data) =>
-      `[API] Error saving game - ${data?.response?.data?.message}`,
+    error: (data) => {
+      if (data.response.status === 401) {
+        console.log("Estou aqui");
+        return `[API] Error loggin in - Incorrect username or password`;
+      }
+      return `[API] Error loggin in - ${data?.response?.data?.message}`;
+    },
   });
 
   router.push("/");

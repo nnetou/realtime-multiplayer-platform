@@ -1,7 +1,7 @@
 <template>
-  <Toaster />
+  <Toaster rich-colors />
   <nav class="max-w-full p-5 flex flex-row justify-between align-middle">
-    <div class="align-middle text-xl">
+    <div class="align-middle font-bold text-xl">
       <RouterLink to="/"> BISCA APP </RouterLink>
       <span class="text-xs text-purple-500" v-if="authStore.currentUser"
         >&nbsp;&nbsp;&nbsp; ({{ authStore.currentUser?.name }})
@@ -11,6 +11,7 @@
     <NavigationMenu>
       <NavigationMenuList class="justify-around gap-5">
         <NavigationMenuItem>
+          <!-- Estes games têm que ter mais, porque há games e matches -->
           <NavigationMenuTrigger>Games</NavigationMenuTrigger>
           <NavigationMenuContent>
             <NavigationMenuLink as-child>
@@ -18,8 +19,13 @@
                 Single Player Game
               </RouterLink>
             </NavigationMenuLink>
-            <NavigationMenuLink> MultiPlayer Game </NavigationMenuLink>
+            <NavigationMenuLink> Multi Player Game </NavigationMenuLink>
           </NavigationMenuContent>
+        </NavigationMenuItem>
+        <NavigationMenuItem>
+          <NavigationMenuLink as-child>
+            <RouterLink to="/about"> About </RouterLink>
+          </NavigationMenuLink>
         </NavigationMenuItem>
         <NavigationMenuItem v-if="!authStore.isLoggedIn">
           <NavigationMenuLink>
@@ -29,11 +35,6 @@
         <NavigationMenuItem v-else>
           <NavigationMenuLink>
             <a @click.prevent="logout">Logout</a>
-          </NavigationMenuLink>
-        </NavigationMenuItem>
-        <NavigationMenuItem>
-          <NavigationMenuLink as-child>
-            <RouterLink to="/about"> About </RouterLink>
           </NavigationMenuLink>
         </NavigationMenuItem>
       </NavigationMenuList>
