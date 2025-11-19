@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\GameMatch;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+
 
 class GameMatchController extends Controller
 {
@@ -22,27 +24,68 @@ class GameMatchController extends Controller
      */
     public function store(Request $request)
     {
-        $data = $request->validate([
-            'type'            => 'required|in:3,9',          // ENUM '3' ou '9'
-            'player1_user_id' => 'required|exists:users,id',
-            'player2_user_id' => 'nullable|exists:users,id',
-            'stake'           => 'nullable|integer|min:0',
+        $validated = $request->validate([
+            'player_score'     => 'required|integer',
+            'opponent_score'   => 'required|integer',
+            'winner'           => 'required|string|in:player,bot',
+            'duration_seconds' => 'required|integer',
+            'custom'           => 'nullable|array',
         ]);
 
-        $match = GameMatch::create([
-            'type'            => $data['type'],
-            'player1_user_id' => $data['player1_user_id'],
-            'player2_user_id' => $data['player2_user_id'] ?? null,
-            'stake'           => $data['stake'] ?? 0,
-            'status'          => 'Pending',
-        ]);
+        $user = $request->user();
 
-        return response()->json(
-            GameMatch::with(['player1', 'player2'])->find($match->id),
-            201
-        );
+        return DB::transaction(function () use ($validated, $user) {
+            
+            $match = new GameMatch();
+            $match->type = 'SinglePlayer';
+            $match->status = 'Ended';
+            
+            $match->player1_user_id = $user->id;
+            $match->player2_user_id = null;
+
+            if ($validated['winner'] === 'player') {
+                $match->winner_user_id = $user->id;
+                $match->loser_user_id = null;
+            } else {
+                $match->winner_user_id = null;
+                $match->loser_user_id = $user->id;
+            }
+
+            $match->player1_marks = $validated['player_score'];
+            $match->player2_marks = $validated['opponent_score'];
+            $match->player1_points = 0; 
+            $match->player2_points = 0;
+
+            $match->total_time = $validated['duration_seconds'];
+            $match->began_at = now()->subSeconds($validated['duration_seconds']);
+            $match->ended_at = now();
+
+            // --- CORREÇÃO IMPORTANTE ---
+            // Se não houver custom, guardamos null. 
+            // Se guardarmos [], o Android crasha porque espera um Objeto {}.
+            $match->custom = !empty($validated['custom']) ? $validated['custom'] : null;
+
+            $coinsEarned = 0;
+            if ($validated['winner'] === 'player') {
+                $coinsEarned = 10; 
+                if ($validated['player_score'] >= 4 && $validated['opponent_score'] == 0) {
+                    $coinsEarned += 10; 
+                }
+            } else {
+                $coinsEarned = 2;
+            }
+
+            $match->stake = $coinsEarned;
+            $match->save();
+
+            if ($coinsEarned > 0) {
+                $user->coins_balance += $coinsEarned;
+                $user->save();
+            }
+
+            return $match->load(['player1', 'winner']);
+        });
     }
-
     /**
      * GET /api/game-matches/{id}
      * Mostra uma partida específica.
