@@ -3,117 +3,88 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\GameMatchController;
-use App\Models\GameMatch;
-use App\Models\User;
+use App\Http\Controllers\MatchController;
+// Imports
+use App\Models\Game;
+use App\Models\Achievement;
+use Illuminate\Database\QueryException; // Necessário para apanhar o erro
 
-// ------------------------------
-// AUTH (Público)
-// ------------------------------
+// --- ROTA PÚBLICA (LOGIN) ---
 Route::post('/login', [AuthController::class, 'login']);
 
-Route::get('/metadata', function () {
-    return [
-        "name"    => "DAD 2025/26 Project API",
-        "version" => "0.0.1"
-    ];
-});
-
-// ------------------------------
-// ROTAS PROTEGIDAS (Exigem Token)
-// ------------------------------
+// --- ROTAS PROTEGIDAS ---
 Route::middleware('auth:sanctum')->group(function () {
-
     Route::get('/users/me', function (Request $request) {
         return $request->user();
     });
-
     Route::post('/logout', [AuthController::class, 'logout']);
 
-    // ------------------------------
-    // GAME MATCHES (AGORA ESTÃO AQUI DENTRO)
-    // ------------------------------
-    // Importante: O POST tem de estar aqui para sabermos quem é o $user
-    Route::get('/game-matches', [GameMatchController::class, 'index']);
-    Route::post('/game-matches', [GameMatchController::class, 'store']);
-    Route::get('/game-matches/{id}', [GameMatchController::class, 'show']);
-    Route::put('/game-matches/{id}', [GameMatchController::class, 'update']);
-    Route::delete('/game-matches/{id}', [GameMatchController::class, 'destroy']);
+    Route::post('/matches', [MatchController::class, 'store']); 
+    Route::get('/history/matches', [MatchController::class, 'index']); 
 
-    // ------------------------------
-    // HISTORY
-    // ------------------------------
-    Route::get('/history/matches', function (Request $request) {
-        $user = $request->user();
-        $query = GameMatch::where(function($q) use ($user) {
-                $q->where('player1_user_id', $user->id)
-                  ->orWhere('player2_user_id', $user->id);
-            })
-            ->where('status', 'Ended')
-            ->with(['player1', 'player2', 'winner', 'loser']); // Removi 'games' se não existir a relação
+    Route::get('/scoreboard/personal', [MatchController::class, 'personalScoreboard']);
+});
 
-        if ($request->has('result')) {
-            if ($request->result === 'win') {
-                $query->where('winner_user_id', $user->id);
-            } elseif ($request->result === 'loss') {
-                $query->where('loser_user_id', $user->id);
-            }
+Route::get('/scoreboard/global', [MatchController::class, 'globalScoreboard']);
+
+
+// ==========================================================================
+// ROTA DE CORREÇÃO - VERSÃO FINAL (COM TRY-CATCH)
+// ==========================================================================
+Route::get('/fix-achievements', function () {
+    // 1. Busca jogos com pontuação alta (>90) que tenham IDs válidos
+    $games = \App\Models\Game::where('player1_points', '>=', 91)
+                 ->whereNotNull('player1_user_id')
+                 ->whereNotNull('match_id')
+                 ->get();
+
+    $count = 0;
+    
+    foreach ($games as $game) {
+        // 2. Verifica se o User e o Match AINDA existem (para evitar erro de Foreign Key)
+        $userExists = \App\Models\User::find($game->player1_user_id);
+        $matchExists = \App\Models\MatchModel::find($game->match_id); // Confirma se usas Match ou MatchModel
+
+        if (!$userExists || !$matchExists) {
+            continue; // Salta este registo estragado
         }
 
-        $orderBy = $request->get('order_by', 'created_at');
-        $orderDir = $request->get('order_dir', 'desc');
-        $query->orderBy($orderBy, $orderDir);
+        // 3. Define o tipo de Prémio
+        $points = $game->player1_points;
+        $type = null;
+        $desc = null;
 
-        return response()->json($query->get());
-    });
+        if ($points == 120) {
+            $type = 'Bandeira';
+            $desc = 'Clean Sweep! 120 Points (Bandeira)';
+        } elseif ($points >= 91) {
+            $type = 'Capote';
+            $desc = 'Heavy Win! 91-119 Points (Capote)';
+        }
 
-    // ------------------------------
-    // SCOREBOARD
-    // ------------------------------
-    Route::get('/scoreboard/personal', function (Request $request) {
-        $user = $request->user();
-        
-        $totalMatches = GameMatch::where(function($query) use ($user) {
-            $query->where('player1_user_id', $user->id)
-                  ->orWhere('player2_user_id', $user->id);
-        })->where('status', 'Ended')->count();
+        // 4. Tenta criar (com try-catch para não parar se der erro)
+        if ($type) {
+            try {
+                // Verifica duplicados
+                $exists = \App\Models\Achievement::where('game_match_id', $game->match_id)
+                                     ->where('type', $type)
+                                     ->exists();
 
-        $wonMatches = GameMatch::where('winner_user_id', $user->id)
-            ->where('status', 'Ended')->count();
+                if (!$exists) {
+                    \App\Models\Achievement::create([
+                        'user_id'       => $game->player1_user_id,
+                        'game_match_id' => $game->match_id,
+                        'type'          => $type,
+                        'description'   => $desc
+                    ]);
+                    $count++;
+                }
+            } catch (\Exception $e) {
+                // Ignora silenciosamente qualquer erro e continua
+                continue;
+            }
+        }
+    }
 
-        return response()->json([
-            'total_matches' => $totalMatches,
-            'won_matches' => $wonMatches,
-            'lost_matches' => $totalMatches - $wonMatches,
-            'win_rate' => $totalMatches > 0 ? round(($wonMatches / $totalMatches) * 100, 2) : 0,
-            'capote_count' => 0, // Implementar lógica se necessário
-            'bandeira_count' => 0,
-            'coins_balance' => $user->coins_balance,
-        ]);
-    });
-
-    Route::get('/scoreboard/global', function () {
-        $mostWins = User::where('type', 'P')
-            ->withCount(['matchesWon' => function ($q) {
-                $q->where('status', 'Ended');
-            }])
-            ->orderByDesc('matches_won_count')
-            ->take(10)
-            ->get(['id', 'name', 'nickname', 'matches_won_count']);
-
-        $mostCoins = User::where('type', 'P')
-            ->orderByDesc('coins_balance')
-            ->take(10)
-            ->get(['id', 'name', 'nickname', 'coins_balance']);
-
-        // Simplificado para evitar erros se a relação achievements não existir
-        $mostAchievements = []; 
-
-        return response()->json([
-            'most_wins' => $mostWins,
-            'most_coins' => $mostCoins,
-            'most_achievements' => $mostAchievements
-        ]);
-    });
-
+    return "Seeder concluído! Foram criados $count achievements. Vai ver a app!";
 });

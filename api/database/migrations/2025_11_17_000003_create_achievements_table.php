@@ -13,7 +13,7 @@ return new class extends Migration
 
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->foreignId('game_match_id')
-                ->constrained('game_matches')
+                ->constrained('games')
                 ->onDelete('cascade');
 
             $table->string('type');

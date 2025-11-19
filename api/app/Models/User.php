@@ -7,105 +7,41 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
-use Illuminate\Database\Eloquent\SoftDeletes;
+
+// IMPORTANTE: Importar os models
+use App\Models\MatchModel;
+use App\Models\Achievement;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
+    use HasApiTokens, HasFactory, Notifiable;
 
     protected $fillable = [
-        'name',
-        'email',
-        'password',
-        'type',
-        'nickname',
-        'blocked',
-        'photo_avatar_filename',
-        'coins_balance',
-        'custom',
+        'name', 'email', 'password', 'type', 'nickname', 
+        'blocked', 'photo_avatar_filename', 'coins_balance', 'custom'
     ];
 
-    protected $hidden = [
-        'password',
-        'remember_token',
-    ];
+    protected $hidden = ['password', 'remember_token'];
 
     protected $casts = [
         'email_verified_at' => 'datetime',
-        'blocked'           => 'boolean',
-        'coins_balance'     => 'integer',
-        'custom'            => 'array',
+        'blocked' => 'boolean',
+        'coins_balance' => 'integer',
+        'custom' => 'array',
     ];
 
+    // --- ESTAS SÃO AS FUNÇÕES QUE FALTAM PARA O GLOBAL RANKING ---
 
-    public function matchesAsPlayer1()
-    {
-        return $this->hasMany(Game::class, 'player1_user_id');
-    }
-
-    public function matchesAsPlayer2()
-    {
-        return $this->hasMany(Game::class, 'player2_user_id');
-    }
-
+    // 1. Relação de Vitórias (Para o "Most Matches Won")
     public function matchesWon()
     {
-        return $this->hasMany(Game::class, 'winner_user_id');
+        // Nota: Usa MatchModel::class e a chave 'winner_user_id'
+        return $this->hasMany(MatchModel::class, 'winner_user_id');
     }
 
-    public function matchesLost()
+    // 2. Relação de Achievements (Para o "Most Achievements")
+    public function achievements()
     {
-        return $this->hasMany(Game::class, 'loser_user_id');
-    }
-
-    public function allMatches()
-    {
-        return Game::where('player1_user_id', $this->id)
-            ->orWhere('player2_user_id', $this->id);
-    }
-
-    public function winsCount()
-    {
-        return $this->matchesWon()->count();
-    }
-
-    public function lossesCount()
-    {
-        return $this->matchesLost()->count();
-    }
-
-    public function winrate()
-    {
-        $total = $this->allMatches()->count();
-        if ($total === 0) return 0;
-
-        return round(($this->winsCount() / $total) * 100, 2);
-    }
-
-    public function capoteCount()
-    {
-        return $this->matchesWon()
-            ->where(function ($q) {
-                $q->where('player1_points', 4)->where('player2_points', 0)
-                  ->orWhere(function ($q2) {
-                      $q2->where('player2_points', 4)->where('player1_points', 0);
-                  });
-            })->count();
-    }
-
-    public function bandeiraCount()
-    {
-        return $this->matchesWon()
-            ->where(function ($q) {
-                $q->where('player1_points', 4)->where('player2_points', 1)
-                  ->orWhere(function ($q2) {
-                      $q2->where('player2_points', 4)->where('player1_points', 1);
-                  });
-            })->count();
-    }
-
-    public function isAdmin(): bool
-    {
-        return $this->type === 'A';
+        return $this->hasMany(Achievement::class, 'user_id');
     }
 }
