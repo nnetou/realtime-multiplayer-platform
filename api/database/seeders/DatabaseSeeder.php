@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +15,9 @@ class DatabaseSeeder extends Seeder
     public static $startDate;
     public static $dbInsertBlockSize = 500;
 
+    // public static $seedType = "small";
+    //public static $seedType = "full";
+    //public static $seedLanguage = "pt_PT";
     public static $seedLanguage = "en_US";
 
     public function run(): void
@@ -23,21 +27,17 @@ class DatabaseSeeder extends Seeder
         $this->command->info("-----------------------------------------------");
 
         self::$startDate = Carbon::now()->subMonths(14);
-        self::$seedLanguage = $this->command->choice(
-            'What is the language for users\' names?', 
-            ['pt_PT', 'en_US'], 
-            0
-        );
+        self::$seedLanguage = $this->command->choice('What is the language for users\' names?', ['pt_PT', 'en_US'], 0);
 
-        // Disable foreign keys
         if (DB::getDriverName() === 'sqlite') {
             DB::statement('PRAGMA foreign_keys = OFF');
         } else {
             DB::statement('SET foreign_key_checks=0');
+            // No permissions to change global setting. Change the session setting only
+            //DB::statement("SET @@global.time_zone = '+00:00'");
             DB::statement("SET time_zone = '+00:00'");
         }
 
-        // Clear all relevant tables
         DB::table('users')->delete();
         DB::table('matches')->delete();
         DB::table('games')->delete();
@@ -45,7 +45,6 @@ class DatabaseSeeder extends Seeder
         DB::table('coin_transactions')->delete();
         DB::table('coin_transaction_types')->delete();
 
-        // Reset AUTO_INCREMENT / SQLITE sequences
         if (DB::getDriverName() === 'sqlite') {
             DB::statement("DELETE FROM sqlite_sequence WHERE name = 'users'");
             DB::statement("DELETE FROM sqlite_sequence WHERE name = 'matches'");
@@ -64,22 +63,19 @@ class DatabaseSeeder extends Seeder
 
         $this->command->info("-----------------------------------------------");
 
-        // Run core seeders
         $this->call(TransactionTypesSeeder::class);
         $this->call(UsersSeeder::class);
         $this->call(InitialTransactionsSeeder::class);
         $this->call(GamesSeeder::class);
         $this->call(GamesTransactionsSeeder::class);
 
-        //ADD THE CARDS SEEDER (for BISCA)
-        $this->call(CartasSeeder::class);
-
-        // Re-enable foreign keys
         if (DB::getDriverName() === 'sqlite') {
             DB::statement('PRAGMA foreign_keys = ON');
         } else {
             DB::statement('SET foreign_key_checks=1');
         }
+
+
 
         $this->command->info("-----------------------------------------------");
         $this->command->info("END of database seeder");
