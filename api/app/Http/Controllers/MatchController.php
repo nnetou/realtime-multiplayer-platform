@@ -66,6 +66,7 @@ class MatchController extends Controller
             ], 402);
         }
 
+        // Garante que o Bot existe
         $bot = User::firstOrCreate(
             ['nickname' => 'Bot'],
             ['name' => 'System Bot', 'email' => 'bot@sys.com', 'password' => '123', 'type' => 'P']
@@ -74,6 +75,7 @@ class MatchController extends Controller
         try {
             return DB::transaction(function () use ($validated, $user, $bot, $entryFee, $baseWinReward, $bonusCapote, $bonusBandeira) {
 
+                // 1. Criar o Match Principal
                 $match = new MatchModel();
                 $match->type = '3';
                 $match->status = 'Ended';
@@ -98,6 +100,7 @@ class MatchController extends Controller
                 $match->stake         = 0;
                 $match->save();
 
+                // Transações de moedas (Fee e Reward base)
                 $gameFeeType = CoinTransactionType::where('name', 'Game fee')->firstOrFail();
                 $payoutType  = CoinTransactionType::where('name', 'Game payout')->firstOrFail();
                 $bonusType   = CoinTransactionType::where('name', 'Bonus')->firstOrFail();
@@ -126,9 +129,11 @@ class MatchController extends Controller
 
                 $bonusReward = 0;
 
+                // 2. Processar os Jogos Individuais (Tricks)
                 if (!empty($validated['custom']['trick_breakdown'])) {
                     $trickBreakdown = $validated['custom']['trick_breakdown'];
 
+                    // Agrupar tricks por índice de jogo (Game 1, Game 2...)
                     $gamesData = [];
                     foreach ($trickBreakdown as $trick) {
                         $idx = $trick['game_index'] ?? 1;
@@ -139,7 +144,17 @@ class MatchController extends Controller
                         $game = new Game();
                         $game->match_id = $match->id;
                         $game->type = '3';
+                        
+                        // --- CORREÇÃO CRÍTICA AQUI ---
                         $game->player1_user_id = $user->id;
+                        $game->player2_user_id = $bot->id; // Faltava definir o adversário (Bot)
+                        // -----------------------------
+
+                        // Preencher metadados para evitar erros de SQL
+                        $game->status = 'Ended';
+                        $game->began_at = $match->began_at;
+                        $game->ended_at = $match->ended_at;
+                        $game->total_time = $match->total_time;
                         $game->timestamps = false;
 
                         $pPoints = 0;
@@ -158,13 +173,16 @@ class MatchController extends Controller
 
                         if ($pPoints > $bPoints) {
                             $game->winner_user_id = $user->id;
+                            $game->loser_user_id = $bot->id;
                         } elseif ($bPoints > $pPoints) {
                             $game->winner_user_id = $bot->id;
+                            $game->loser_user_id = $user->id;
                         }
 
                         $game->custom = ['trick_breakdown' => $tricks];
                         $game->save();
 
+                        // Verificar Achievements (Capote/Bandeira)
                         if ($pPoints > $bPoints && $game->winner_user_id == $user->id) {
                             $achType = null;
 
@@ -185,12 +203,14 @@ class MatchController extends Controller
                                         'description'   => $achType,
                                     ]);
                                 } catch (\Exception $e) {
+                                    // Ignora erro se já existir achievement duplicado
                                 }
                             }
                         }
                     }
                 }
 
+                // 3. Pagar Bónus e Atualizar Saldo Final
                 if ($bonusReward > 0) {
                     CoinTransaction::create([
                         'user_id'                  => $user->id,
@@ -213,7 +233,8 @@ class MatchController extends Controller
             });
         } catch (\Exception $e) {
             Log::error('Erro ao guardar match: '.$e->getMessage());
-            return response()->json(['error' => $e->getMessage()], 500);
+            // Retorna erro JSON detalhado para facilitar debug no Android
+            return response()->json(['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()], 500);
         }
     }
 

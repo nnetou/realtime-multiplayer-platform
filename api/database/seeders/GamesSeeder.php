@@ -25,38 +25,47 @@ class GamesSeeder extends Seeder
         $d->addSeconds($deltaSegundos);
     }
 
-    // --- CORREÇÃO: 20 VAZAS (TRICKS) ---
-    private function generateFakeTricks($gameIndex, $p1Score, $p2Score) {
-        $tricks = [];
-        $pointsDistributed = 0;
-
-        // Bisca 1v1 = 40 cartas / 2 jogadores = 20 vazas
-        for ($i = 1; $i <= 20; $i++) {
-            
-            $points = 0;
-
-            if ($i == 20) {
-                // Na última vaza, atribuímos os pontos que faltam para totalizar 120
-                $points = max(0, 120 - $pointsDistributed);
-            } else {
-                // Nas outras, pontos aleatórios (mas baixos, para não esgotar logo)
-                // Cartas valem: A(11), 7(10), K(4), J(3), Q(2). Máximo numa vaza é 21 (11+10), mínimo 0.
-                // Média segura para distribuição:
-                $points = rand(0, 11); 
-                
-                // Se já estivermos perto de 120, reduz
-                if (($pointsDistributed + $points) > 120) {
-                    $points = 0;
-                }
+    // --- NOVA LÓGICA: SIMULAÇÃO DE BARALHO ---
+    // Isto garante que:
+    // 1. A soma das vazas dá SEMPRE 120.
+    // 2. Não existem vazas com pontos impossíveis (ex: 1, 5, 24).
+    // 3. A lista bate sempre certo com o resultado final.
+    private function generateRealDeckGameData($gameIndex) {
+        // 1. Criar Baralho com valores reais da Bisca
+        $deckValues = [];
+        // 4 naipes x (A, 7, K, J, Q, 6, 5, 4, 3, 2)
+        // Valores: 11, 10, 4, 3, 2, 0, 0, 0, 0, 0
+        $suitValues = [11, 10, 4, 3, 2, 0, 0, 0, 0, 0];
+        
+        for ($i = 0; $i < 4; $i++) { // 4 Naipes
+            foreach ($suitValues as $val) {
+                $deckValues[] = $val;
             }
-            
-            $pointsDistributed += $points;
+        }
 
-            // Decide quem ganhou a vaza baseado na pontuação final do jogo
-            // Se o P1 ganhou o jogo, tem mais probabilidade de ganhar cada vaza
-            $winner = ($p1Score > $p2Score) 
-                ? (rand(0, 100) > 40 ? 'Player' : 'Bot') 
-                : (rand(0, 100) > 40 ? 'Bot' : 'Player');
+        // 2. Baralhar
+        shuffle($deckValues);
+
+        $tricks = [];
+        $p1Total = 0;
+        $p2Total = 0;
+
+        // 3. Jogar 20 Vazas
+        for ($i = 1; $i <= 20; $i++) {
+            // Retira 2 cartas do baralho
+            $card1 = array_pop($deckValues);
+            $card2 = array_pop($deckValues);
+            
+            $points = $card1 + $card2;
+
+            // Decide vencedor aleatoriamente (podes ajustar o peso para equilibrar)
+            $winner = (rand(0, 100) > 50) ? 'Player' : 'Bot';
+
+            if ($winner === 'Player') {
+                $p1Total += $points;
+            } else {
+                $p2Total += $points;
+            }
 
             $tricks[] = [
                 'game_index' => $gameIndex, 
@@ -65,12 +74,17 @@ class GamesSeeder extends Seeder
                 'points' => $points
             ];
         }
-        return ['trick_breakdown' => $tricks];
+
+        return [
+            'player1_points' => $p1Total,
+            'player2_points' => $p2Total,
+            'trick_breakdown' => $tricks
+        ];
     }
 
     public function run(): void
     {
-        $this->command->info("Games seeder - Start");
+        $this->command->info("Games seeder - Start (Fixed Logic)");
 
         $start = DB::table('users')->where('type', 'P')->min('created_at');
         if (!$start) {
@@ -122,14 +136,16 @@ class GamesSeeder extends Seeder
             }
             
             $match = null;
+            // --- MATCH LOGIC ---
             if (rand(1, $this->ratioStandaloneToMatch) === 1) {
                 $match = $this->newMatch($filteredPlayers, $userIDPlayer1, $userIDPlayer2, $d);
                 $playersMarks = [0, 0];
                 $playersPoints = [0, 0];
                 
-                $gameCounter = 1; // Reset contador de jogos do match
+                $gameCounter = 1; 
 
                 while($playersMarks[0] < 4 && $playersMarks[1] < 4) {
+                    // Agora passamos a lógica de geração para dentro do newGame
                     $newGame = $this->newGame($filteredPlayers, $match, $userIDPlayer1, $userIDPlayer2, $d, $gameCounter);
                     $games[] = $newGame;
                     
@@ -139,21 +155,27 @@ class GamesSeeder extends Seeder
                     $playersPoints[0] += $newGame['player1_points'];
                     $playersPoints[1] += $newGame['player2_points'];
                     
-                    if ($newGame['player1_points'] > $newGame['player2_points']) {
-                        if ($newGame['player1_points'] >= 120) $playersMarks[0]+= 4;
-                        elseif ($newGame['player1_points'] >= 91) $playersMarks[0] += 2;
+                    // Calculo dos pontos de jogo (4, 2 ou 1)
+                    $p1GamePts = $newGame['player1_points'];
+                    $p2GamePts = $newGame['player2_points'];
+
+                    if ($p1GamePts > $p2GamePts) {
+                        if ($p1GamePts >= 120) $playersMarks[0]+= 4;
+                        elseif ($p1GamePts >= 91) $playersMarks[0] += 2;
                         else $playersMarks[0]++;
-                    } elseif ($newGame['player2_points'] > $newGame['player1_points']) {
-                        if ($newGame['player2_points'] >= 120) $playersMarks[1]+= 4;
-                        elseif ($newGame['player2_points'] >= 91) $playersMarks[1] += 2;
+                    } elseif ($p2GamePts > $p1GamePts) {
+                        if ($p2GamePts >= 120) $playersMarks[1]+= 4;
+                        elseif ($p2GamePts >= 91) $playersMarks[1] += 2;
                         else $playersMarks[1]++;
                     }
+                    // Nota: Empates (60-60) não dão marks a ninguém
+                    
                     $gameCounter++;
                 }
                 $this->updateMatchWinner($match, $playersMarks[0], $playersMarks[1], $playersPoints[0], $playersPoints[1], $d);
                 $matches[] = $match;
             } else {
-                // Single Game -> Index é sempre 1
+                // --- SINGLE GAME LOGIC ---
                 $newGame = $this->newGame($filteredPlayers, $match, $userIDPlayer1, $userIDPlayer2, $d, 1);
                 $games[] = $newGame;
                 $ach = $this->checkAchievement($newGame);
@@ -239,14 +261,20 @@ class GamesSeeder extends Seeder
         $this->gameID++;
         $this->nextGameDateTime($d, $filteredPlayers, $match != null);
         $begin_d = $d->copy();
-        $pointsUser1 = rand(0, 120);
-        $pointsUser2 = 120 - $pointsUser1;
+        
+        // --- ALTERAÇÃO: Geramos os dados REAIS primeiro ---
+        $gameData = $this->generateRealDeckGameData($gameIndex);
+        
+        // Agora usamos os totais calculados da simulação
+        $pointsUser1 = $gameData['player1_points'];
+        $pointsUser2 = $gameData['player2_points'];
+        
+        // Preparamos o JSON com a breakdown gerada
+        // AVISO: Envolvemos num array 'trick_breakdown' para manter compatibilidade com o Android
+        $customJson = json_encode(['trick_breakdown' => $gameData['trick_breakdown']]);
+
         $duration = random_int(200, 900);
         $d->addSeconds($duration);
-
-        // GERAR 20 VAZAS
-        $tricks = $this->generateFakeTricks($gameIndex, $pointsUser1, $pointsUser2);
-        $customJson = json_encode($tricks);
 
         return [
             'id' => $this->gameID,
