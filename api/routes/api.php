@@ -6,14 +6,25 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\MatchController;
 use App\Http\Controllers\CoinController;
+use App\Http\Controllers\ShopController; 
 
 use App\Models\Game;
 use App\Models\Achievement;
 
-// LOGIN (público)
-Route::post('/login', [AuthController::class, 'login']);
+// ==========================================================================
+// 1. LOGIN (CORRIGIDO: Adicionado ->name('login'))
+// ==========================================================================
+Route::post('/login', [AuthController::class, 'login'])->name('login');
 
-// ROTAS PROTEGIDAS
+// ==========================================================================
+// 2. ROTAS PÚBLICAS (Imagens e Scoreboard Global)
+// ==========================================================================
+Route::get('/image-proxy/{filename}', [ShopController::class, 'getImage']);
+Route::get('/scoreboard/global', [MatchController::class, 'globalScoreboard']);
+
+// ==========================================================================
+// 3. ROTAS PROTEGIDAS (Requerem Login)
+// ==========================================================================
 Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/users/me', function (Request $request) {
@@ -30,14 +41,16 @@ Route::middleware('auth:sanctum')->group(function () {
     // COINS
     Route::get('/me/coins', [CoinController::class, 'getBalance']);
     Route::get('/me/coin-transactions', [CoinController::class, 'getTransactions']);
-});
 
-// SCOREBOARD GLOBAL (não precisa login)
-Route::get('/scoreboard/global', [MatchController::class, 'globalScoreboard']);
+    // SHOP (CORRIGIDO: Removido o {id} do URL para bater certo com o Android)
+    Route::get('/shop/avatars', [ShopController::class, 'index']);
+    Route::post('/shop/buy', [ShopController::class, 'buy']);   // Era /shop/avatars/{id}/buy
+    Route::post('/shop/equip', [ShopController::class, 'equip']); // Era /shop/avatars/{id}/equip
+});
 
 
 // ==========================================================================
-// ROTA PARA CORRIGIR ACHIEVEMENTS (NÃO TOCAR)
+// ROTA PARA CORRIGIR ACHIEVEMENTS (Manter como estava)
 // ==========================================================================
 Route::get('/fix-achievements', function () {
 

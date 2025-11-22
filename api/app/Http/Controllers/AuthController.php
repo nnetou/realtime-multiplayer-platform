@@ -24,36 +24,9 @@ class AuthController extends Controller
         $user = Auth::user();
         $token = $user->createToken('auth-token')->plainTextToken;
 
-        $photoPath = base_path('database/seeders/photos/' . $user->photo_avatar_filename);
-
-        $avatarBase64 = null;
-
-       if (!empty($user->photo_avatar_filename)) {
-
-            $photoPath = base_path('database/seeders/photos/' . $user->photo_avatar_filename);
-
-            if (file_exists($photoPath)) {
-                $avatarBase64 = "data:image/jpeg;base64," . 
-                    base64_encode(file_get_contents($photoPath));
-            }
-        }
-
-        $avatarBase64 = null;
-
-        if (!empty($user->photo_avatar_filename)) {
-
-            $filename = trim($user->photo_avatar_filename);
-
-            $photoPath = base_path('database/seeders/photos/' . $filename);
-
-            \Log::info('PHOTO PATH = ' . $photoPath);
-            \Log::info('FILE EXISTS = ' . (file_exists($photoPath) ? 'YES' : 'NO'));
-
-            if (file_exists($photoPath)) {
-                $avatarBase64 = "data:image/jpeg;base64," .
-                    base64_encode(file_get_contents($photoPath));
-            }
-        }
+        // --- CORREÇÃO AQUI ---
+        // Removemos toda a lógica complexa de Base64 e ficheiros.
+        // Apenas devolvemos os dados limpos do utilizador.
         
         return response()->json([
             'token' => $token,
@@ -62,10 +35,11 @@ class AuthController extends Controller
                 'name' => $user->name,
                 'nickname' => $user->nickname,
                 'coins_balance' => $user->coins_balance,
-                'photo' => $avatarBase64
+                
+                // ESTA É A LINHA QUE FALTAVA:
+                'photo_avatar_filename' => $user->photo_avatar_filename, 
             ]   
         ]);
-
     }
 
     public function logout(Request $request)

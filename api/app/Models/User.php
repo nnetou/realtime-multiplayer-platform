@@ -7,8 +7,9 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 
-// IMPORTANTE: Importar os models
+// Importar models
 use App\Models\MatchModel;
 use App\Models\Achievement;
 
@@ -18,8 +19,23 @@ class User extends Authenticatable
 
     protected $fillable = [
         'name', 'email', 'password', 'type', 'nickname', 
-        'blocked', 'photo_avatar_filename', 'coins_balance', 'custom'
+        'blocked', 'photo_avatar_filename', 'coins_balance', 
+        'custom' // <--- O 'custom' já cá estava, mantém assim.
     ];
+
+    protected $appends = ['photo_url'];
+
+    // Helper para devolver o URL completo da imagem
+    protected function photoUrl(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                return $this->photo_avatar_filename 
+                    ? asset('storage/photos_avatars/' . $this->photo_avatar_filename)
+                    : null;
+            },
+        );
+    }
 
     protected $hidden = ['password', 'remember_token'];
 
@@ -27,19 +43,18 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'blocked' => 'boolean',
         'coins_balance' => 'integer',
-        'custom' => 'array',
+        
+        // --- MUITO IMPORTANTE ---
+        // Isto faz com que o Laravel converta automaticamente o JSON da BD para Array no PHP
+        'custom' => 'array', 
     ];
 
-    // --- ESTAS SÃO AS FUNÇÕES QUE FALTAM PARA O GLOBAL RANKING ---
-
-    // 1. Relação de Vitórias (Para o "Most Matches Won")
+    // Relações
     public function matchesWon()
     {
-        // Nota: Usa MatchModel::class e a chave 'winner_user_id'
         return $this->hasMany(MatchModel::class, 'winner_user_id');
     }
 
-    // 2. Relação de Achievements (Para o "Most Achievements")
     public function achievements()
     {
         return $this->hasMany(Achievement::class, 'user_id');
