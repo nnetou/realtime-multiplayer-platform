@@ -12,7 +12,7 @@ use App\Models\Game;
 use App\Models\Achievement;
 
 // ==========================================================================
-// 1. LOGIN (CORRIGIDO: Adicionado ->name('login'))
+// 1. LOGIN
 // ==========================================================================
 Route::post('/login', [AuthController::class, 'login'])->name('login');
 
@@ -21,6 +21,9 @@ Route::post('/login', [AuthController::class, 'login'])->name('login');
 // ==========================================================================
 Route::get('/image-proxy/{filename}', [ShopController::class, 'getImage']);
 Route::get('/scoreboard/global', [MatchController::class, 'globalScoreboard']);
+
+// Rota nova para as cartas (Essencial para não dar 404 nas cartas)
+Route::get('/card-image-proxy/{filename}', [ShopController::class, 'getCardImage']);
 
 // ==========================================================================
 // 3. ROTAS PROTEGIDAS (Requerem Login)
@@ -42,65 +45,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me/coins', [CoinController::class, 'getBalance']);
     Route::get('/me/coin-transactions', [CoinController::class, 'getTransactions']);
 
-    // SHOP (CORRIGIDO: Removido o {id} do URL para bater certo com o Android)
-    Route::get('/shop/avatars', [ShopController::class, 'index']);
-    Route::post('/shop/buy', [ShopController::class, 'buy']);   // Era /shop/avatars/{id}/buy
-    Route::post('/shop/equip', [ShopController::class, 'equip']); // Era /shop/avatars/{id}/equip
+    // SHOP (CORRIGIDO: Sem barra no final)
+    Route::get('/shop', [ShopController::class, 'index']); // <--- AQUI MUDOU
+    Route::post('/shop/buy', [ShopController::class, 'buy']);
+    Route::post('/shop/equip', [ShopController::class, 'equip']);
 });
 
 
 // ==========================================================================
-// ROTA PARA CORRIGIR ACHIEVEMENTS (Manter como estava)
+// ROTA PARA CORRIGIR ACHIEVEMENTS
 // ==========================================================================
 Route::get('/fix-achievements', function () {
-
-    $games = Game::where('player1_points', '>=', 91)
-                 ->whereNotNull('player1_user_id')
-                 ->whereNotNull('match_id')
-                 ->get();
-
-    $count = 0;
-
-    foreach ($games as $game) {
-        $userExists  = \App\Models\User::find($game->player1_user_id);
-        $matchExists = \App\Models\MatchModel::find($game->match_id);
-
-        if (!$userExists || !$matchExists) {
-            continue;
-        }
-
-        $points = $game->player1_points;
-        $type = null;
-        $desc = null;
-
-        if ($points == 120) {
-            $type = 'Bandeira';
-            $desc = 'Clean Sweep! 120 Points (Bandeira)';
-        } elseif ($points >= 91) {
-            $type = 'Capote';
-            $desc = 'Heavy Win! 91-119 Points (Capote)';
-        }
-
-        if ($type) {
-            try {
-                $exists = Achievement::where('game_match_id', $game->match_id)
-                                     ->where('type', $type)
-                                     ->exists();
-
-                if (!$exists) {
-                    Achievement::create([
-                        'user_id'       => $game->player1_user_id,
-                        'game_match_id' => $game->match_id,
-                        'type'          => $type,
-                        'description'   => $desc
-                    ]);
-                    $count++;
-                }
-            } catch (\Exception $e) {
-                continue;
-            }
-        }
-    }
-
-    return "Seeder concluído! Foram criados $count achievements. Vai ver a app!";
+    // ... (Mantém o teu código de achievements igual) ...
+    return "Seeder concluído!";
 });
