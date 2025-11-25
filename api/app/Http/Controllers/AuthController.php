@@ -24,9 +24,7 @@ class AuthController extends Controller
         $user = Auth::user();
         $token = $user->createToken('auth-token')->plainTextToken;
 
-        // --- CORREÇÃO AQUI ---
-        // Removemos toda a lógica complexa de Base64 e ficheiros.
-        // Apenas devolvemos os dados limpos do utilizador.
+        // --- CORREÇÃO AQUI: INCLUIR O CAMPO 'type' ---
         
         return response()->json([
             'token' => $token,
@@ -36,9 +34,12 @@ class AuthController extends Controller
                 'nickname' => $user->nickname,
                 'coins_balance' => $user->coins_balance,
                 
-                // ESTA É A LINHA QUE FALTAVA:
+                // CAMPO OBRIGATÓRIO PARA A RESTRIÇÃO DE ACESSO (Onde reside 'A' ou 'P')
+                'type' => $user->type, 
+
+                // Já existia na tua versão
                 'photo_avatar_filename' => $user->photo_avatar_filename, 
-            ]   
+            ]  
         ]);
     }
 
