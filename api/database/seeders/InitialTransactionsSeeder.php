@@ -14,7 +14,7 @@ class InitialTransactionsSeeder extends Seeder
     private $valueOfInitialBonus = 10;
     public function run(): void
     {
-        $this->allPlayers = DB::table('users')->get();
+        $this->allPlayers = DB::table('users')->where('type', 'P')->get();
         $this->command->info("Create initial Bonuses transactions");
 
         $i = $this->sizeOfSaveBlock;
@@ -56,7 +56,7 @@ class InitialTransactionsSeeder extends Seeder
 
     private function updateAllPlayerBalances(): void
     {
-        DB::table('users')->update(['coins_balance' => $this->valueOfInitialBonus]);
+        DB::table('users')->where('type', 'P')->update(['coins_balance' => $this->valueOfInitialBonus]);
         $this->command->info("Updated all players initial Balance");
     }
 }
