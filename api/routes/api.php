@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\MatchController;
 use App\Http\Controllers\CoinController;
-use App\Http\Controllers\ShopController; 
+use App\Http\Controllers\ShopController;
 
 use App\Models\Game;
 use App\Models\Achievement;
@@ -58,4 +58,16 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::get('/fix-achievements', function () {
     // ... (Mantém o teu código de achievements igual) ...
     return "Seeder concluído!";
+});
+
+
+// ==========================================================================
+// ROTA PARA INFORMAÇÕES NA ABOUTPAGE
+// ==========================================================================
+
+Route::get('/metadata', function (Request $request) {
+    return [
+        "name" => "DAD 2025/26 Project API",
+        "version" => "0.0.1"
+    ];
 });
