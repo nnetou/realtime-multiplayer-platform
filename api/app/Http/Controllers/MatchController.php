@@ -43,6 +43,7 @@ class MatchController extends Controller
 
     public function store(Request $request)
     {
+        // 1. Validação
         $validated = $request->validate([
             'player_score'     => 'required|integer',
             'opponent_score'   => 'required|integer',
@@ -52,39 +53,30 @@ class MatchController extends Controller
         ]);
 
         $user = $request->user();
+        $entryFee = 2;
 
-        // --- CONSTANTES DE JOGO (Sincronizadas com o Android) ---
-        $entryFee      = 2;
-        $baseWinReward = 2; 
-        $bonusCapote   = 2; 
-        $bonusBandeira = 5; 
-
-        // --- DETEÇÃO DE SIMULAÇÃO (Test Screen) ---
+        // O Android envia sempre 'coins_change', logo isto é sempre TRUE
         $isSimulation = isset($validated['custom']['coins_change']);
         $simulationDelta = $isSimulation ? (int)$validated['custom']['coins_change'] : 0;
 
-        // VERIFICAÇÃO DE SALDO
-        // Se for simulação e o valor for >= 0, não exige saldo.
-        // Se for jogo normal ou simulação de perda, exige a Entry Fee.
-        if (!$isSimulation || ($isSimulation && $simulationDelta < 0)) {
-            if ($user->coins_balance < $entryFee) {
-                return response()->json([
-                    'error'           => 'Saldo de coins insuficiente para iniciar o jogo.',
-                    'required_coins'  => $entryFee,
-                    'current_balance' => $user->coins_balance,
-                ], 402);
-            }
+        // Verificação de saldo básico
+        if ($user->coins_balance < $entryFee && $simulationDelta < 0) {
+            return response()->json([
+                'error'           => 'Saldo insuficiente.',
+                'required_coins'  => $entryFee,
+            ], 402);
         }
 
+        // Criar ou obter o Bot
         $bot = User::firstOrCreate(
             ['nickname' => 'Bot'],
             ['name' => 'System Bot', 'email' => 'bot@sys.com', 'password' => '123', 'type' => 'P']
         );
 
         try {
-            return DB::transaction(function () use ($validated, $user, $bot, $entryFee, $baseWinReward, $bonusCapote, $bonusBandeira, $isSimulation, $simulationDelta) {
+            return DB::transaction(function () use ($validated, $user, $bot, $simulationDelta) {
 
-                // 1. CRIAR MATCH (Genérico)
+                // --- PASSO 1: CRIAR O MATCH ---
                 $match = new MatchModel();
                 $match->type = '3';
                 $match->status = 'Ended';
@@ -92,9 +84,8 @@ class MatchController extends Controller
                 $match->player2_user_id = $bot->id;
                 $match->timestamps = false;
 
-                $isWinner = $validated['winner'] === 'player';
-
-                if ($isWinner) {
+                // Definir vencedor
+                if ($validated['winner'] === 'player') {
                     $match->winner_user_id = $user->id;
                 } else {
                     $match->loser_user_id  = $user->id;
@@ -106,77 +97,15 @@ class MatchController extends Controller
                 $match->total_time    = $validated['duration_seconds'];
                 $match->began_at      = now()->subSeconds($validated['duration_seconds']);
                 $match->ended_at      = now();
-                $match->stake         = 0;
+                $match->stake         = $simulationDelta; // Grava quanto se ganhou/perdeu
                 $match->save();
 
-                // =========================================================
-                // LÓGICA DE SIMULAÇÃO (Prioridade: Grava o valor do Android)
-                // =========================================================
-                if ($isSimulation) {
-                    
-                    // Só cria transação se houver mudança de valor (diferente de 0)
-                    if ($simulationDelta != 0) {
-                        $typeName = ($simulationDelta > 0) ? 'Bonus' : 'Game fee';
-                        // Procura tipo de transação. Usar first() como fallback
-                        $transType = CoinTransactionType::where('name', $typeName)->first() ?? CoinTransactionType::first();
-
-                        CoinTransaction::create([
-                            'user_id'                  => $user->id,
-                            'match_id'                 => $match->id,
-                            'coin_transaction_type_id' => $transType->id,
-                            'coins'                    => abs($simulationDelta),
-                            'transaction_datetime'     => now(),
-                            'custom'                   => ['source' => 'simulation_test']
-                        ]);
-                    }
-
-                    // Atualiza saldo final (Se for 0, soma 0)
-                    $match->stake = $simulationDelta;
-                    $match->save();
-
-                    $user->coins_balance += $simulationDelta;
-                    $user->save();
-
-                    // Retorna e ignora a lógica de jogo normal
-                    return $match;
-                }
-
-                // =========================================================
-                // LÓGICA DE JOGO NORMAL
-                // =========================================================
-
-                $gameFeeType = CoinTransactionType::where('name', 'Game fee')->firstOrFail();
-                $payoutType  = CoinTransactionType::where('name', 'Game payout')->firstOrFail();
-                $bonusType   = CoinTransactionType::where('name', 'Bonus')->firstOrFail();
-
-                // 1. Cobrar Entrada (-2)
-                CoinTransaction::create([
-                    'user_id'                  => $user->id,
-                    'match_id'                 => $match->id,
-                    'coin_transaction_type_id' => $gameFeeType->id,
-                    'coins'                    => $entryFee,
-                    'transaction_datetime'     => now(),
-                ]);
-
-                // 2. Pagar Vitória Base (+2)
-                $baseReward = 0;
-                if ($isWinner) {
-                    $baseReward = $baseWinReward;
-
-                    CoinTransaction::create([
-                        'user_id'                  => $user->id,
-                        'match_id'                 => $match->id,
-                        'coin_transaction_type_id' => $payoutType->id,
-                        'coins'                    => $baseReward,
-                        'transaction_datetime'     => now(),
-                    ]);
-                }
-
-                $bonusReward = 0;
-
-                // 3. Processar Detalhes dos Jogos (Tricks) para Achievements REAIS
+                // --- PASSO 2: GRAVAR OS DETALHES (TRICKS) ---
+                // (Isto estava a ser ignorado antes, agora corre SEMPRE)
                 if (!empty($validated['custom']['trick_breakdown'])) {
                     $trickBreakdown = $validated['custom']['trick_breakdown'];
+                    
+                    // Agrupar tricks por jogo (game_index)
                     $gamesData = [];
                     foreach ($trickBreakdown as $trick) {
                         $idx = $trick['game_index'] ?? 1;
@@ -198,6 +127,7 @@ class MatchController extends Controller
                         $pPoints = 0;
                         $bPoints = 0;
 
+                        // Calcular pontos deste jogo específico
                         foreach ($tricks as $t) {
                             if (strtolower($t['winner'] ?? '') === 'player') {
                                 $pPoints += ($t['points'] ?? 0);
@@ -217,19 +147,15 @@ class MatchController extends Controller
                             $game->loser_user_id = $user->id;
                         }
 
+                        // Guardar o breakdown no JSON do jogo
                         $game->custom = ['trick_breakdown' => $tricks];
                         $game->save();
 
-                        // Verificar Bónus de Capote/Bandeira
+                        // --- PASSO 2.1: ACHIEVEMENTS (Agora funcionam!) ---
                         if ($pPoints > $bPoints && $game->winner_user_id == $user->id) {
                             $achType = null;
-                            if ($pPoints == 120) {
-                                $achType     = 'Bandeira';
-                                $bonusReward += $bonusBandeira;
-                            } elseif ($pPoints >= 91) {
-                                $achType     = 'Capote';
-                                $bonusReward += $bonusCapote;
-                            }
+                            if ($pPoints == 120) $achType = 'Bandeira';
+                            elseif ($pPoints >= 91) $achType = 'Capote';
 
                             if ($achType) {
                                 try {
@@ -244,26 +170,27 @@ class MatchController extends Controller
                     }
                 }
 
-                // 4. Pagar Bónus Acumulado
-                if ($bonusReward > 0) {
+                // --- PASSO 3: ATUALIZAR MOEDAS ---
+                // Só cria transação se houver mudança de valor
+                if ($simulationDelta != 0) {
+                    $typeName = ($simulationDelta > 0) ? 'Bonus' : 'Game fee';
+                    $transType = CoinTransactionType::where('name', $typeName)->first() ?? CoinTransactionType::first();
+
                     CoinTransaction::create([
                         'user_id'                  => $user->id,
                         'match_id'                 => $match->id,
-                        'coin_transaction_type_id' => $bonusType->id,
-                        'coins'                    => $bonusReward,
+                        'coin_transaction_type_id' => $transType->id,
+                        'coins'                    => abs($simulationDelta),
                         'transaction_datetime'     => now(),
+                        'custom'                   => ['source' => 'game_result']
                     ]);
                 }
 
-                // Cálculo do Delta Final
-                $netDelta = -$entryFee + $baseReward + $bonusReward;
-
-                $match->stake = $netDelta;
-                $match->save();
-
-                $user->coins_balance += $netDelta;
+                // Atualizar saldo do user
+                $user->coins_balance += $simulationDelta;
                 $user->save();
-
+                
+                // Retornar o match com os jogos carregados para a App ver
                 return $match->load('games');
             });
         } catch (\Exception $e) {
