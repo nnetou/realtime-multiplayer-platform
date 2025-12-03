@@ -11,7 +11,6 @@
     <NavigationMenu>
       <NavigationMenuList class="justify-around gap-5">
         <NavigationMenuItem>
-          <!-- Estes games têm que ter mais, porque há games e matches -->
           <NavigationMenuTrigger>Games</NavigationMenuTrigger>
           <NavigationMenuContent>
             <NavigationMenuLink as-child>

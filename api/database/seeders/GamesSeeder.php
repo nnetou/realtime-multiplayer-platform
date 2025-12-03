@@ -25,16 +25,9 @@ class GamesSeeder extends Seeder
         $d->addSeconds($deltaSegundos);
     }
 
-    // --- NOVA LÓGICA: SIMULAÇÃO DE BARALHO ---
-    // Isto garante que:
-    // 1. A soma das vazas dá SEMPRE 120.
-    // 2. Não existem vazas com pontos impossíveis (ex: 1, 5, 24).
-    // 3. A lista bate sempre certo com o resultado final.
+    
     private function generateRealDeckGameData($gameIndex) {
-        // 1. Criar Baralho com valores reais da Bisca
         $deckValues = [];
-        // 4 naipes x (A, 7, K, J, Q, 6, 5, 4, 3, 2)
-        // Valores: 11, 10, 4, 3, 2, 0, 0, 0, 0, 0
         $suitValues = [11, 10, 4, 3, 2, 0, 0, 0, 0, 0];
         
         for ($i = 0; $i < 4; $i++) { // 4 Naipes
@@ -43,22 +36,18 @@ class GamesSeeder extends Seeder
             }
         }
 
-        // 2. Baralhar
         shuffle($deckValues);
 
         $tricks = [];
         $p1Total = 0;
         $p2Total = 0;
 
-        // 3. Jogar 20 Vazas
         for ($i = 1; $i <= 20; $i++) {
-            // Retira 2 cartas do baralho
             $card1 = array_pop($deckValues);
             $card2 = array_pop($deckValues);
             
             $points = $card1 + $card2;
 
-            // Decide vencedor aleatoriamente (podes ajustar o peso para equilibrar)
             $winner = (rand(0, 100) > 50) ? 'Player' : 'Bot';
 
             if ($winner === 'Player') {
@@ -84,7 +73,7 @@ class GamesSeeder extends Seeder
 
     public function run(): void
     {
-        $this->command->info("Games seeder - Start (Fixed Logic)");
+        $this->command->info("Games seeder - Start");
 
         $start = DB::table('users')->where('type', 'P')->min('created_at');
         if (!$start) {
@@ -136,7 +125,6 @@ class GamesSeeder extends Seeder
             }
             
             $match = null;
-            // --- MATCH LOGIC ---
             if (rand(1, $this->ratioStandaloneToMatch) === 1) {
                 $match = $this->newMatch($filteredPlayers, $userIDPlayer1, $userIDPlayer2, $d);
                 $playersMarks = [0, 0];
@@ -145,7 +133,6 @@ class GamesSeeder extends Seeder
                 $gameCounter = 1; 
 
                 while($playersMarks[0] < 4 && $playersMarks[1] < 4) {
-                    // Agora passamos a lógica de geração para dentro do newGame
                     $newGame = $this->newGame($filteredPlayers, $match, $userIDPlayer1, $userIDPlayer2, $d, $gameCounter);
                     $games[] = $newGame;
                     
@@ -155,7 +142,6 @@ class GamesSeeder extends Seeder
                     $playersPoints[0] += $newGame['player1_points'];
                     $playersPoints[1] += $newGame['player2_points'];
                     
-                    // Calculo dos pontos de jogo (4, 2 ou 1)
                     $p1GamePts = $newGame['player1_points'];
                     $p2GamePts = $newGame['player2_points'];
 
@@ -262,15 +248,12 @@ class GamesSeeder extends Seeder
         $this->nextGameDateTime($d, $filteredPlayers, $match != null);
         $begin_d = $d->copy();
         
-        // --- ALTERAÇÃO: Geramos os dados REAIS primeiro ---
         $gameData = $this->generateRealDeckGameData($gameIndex);
         
-        // Agora usamos os totais calculados da simulação
         $pointsUser1 = $gameData['player1_points'];
         $pointsUser2 = $gameData['player2_points'];
         
-        // Preparamos o JSON com a breakdown gerada
-        // AVISO: Envolvemos num array 'trick_breakdown' para manter compatibilidade com o Android
+        
         $customJson = json_encode(['trick_breakdown' => $gameData['trick_breakdown']]);
 
         $duration = random_int(200, 900);
