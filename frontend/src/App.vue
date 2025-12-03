@@ -9,34 +9,51 @@
     </div>
 
     <NavigationMenu>
-      <NavigationMenuList class="justify-around gap-5">
-        <NavigationMenuItem>
-          <NavigationMenuTrigger>Games</NavigationMenuTrigger>
-          <NavigationMenuContent>
-            <NavigationMenuLink as-child>
-              <RouterLink to="/games/singleplayer">
-                Single Player Game
-              </RouterLink>
-            </NavigationMenuLink>
-            <NavigationMenuLink> Multi Player Game </NavigationMenuLink>
-          </NavigationMenuContent>
-        </NavigationMenuItem>
-        <NavigationMenuItem>
-          <NavigationMenuLink as-child>
-            <RouterLink to="/about"> About </RouterLink>
-          </NavigationMenuLink>
-        </NavigationMenuItem>
-        <NavigationMenuItem v-if="!authStore.isLoggedIn">
-          <NavigationMenuLink>
-            <RouterLink to="/login">Login</RouterLink>
-          </NavigationMenuLink>
-        </NavigationMenuItem>
-        <NavigationMenuItem v-else>
-          <NavigationMenuLink>
-            <a @click.prevent="logout">Logout</a>
-          </NavigationMenuLink>
-        </NavigationMenuItem>
-      </NavigationMenuList>
+     <NavigationMenuList class="justify-around gap-5">
+  <!-- GAMES -->
+  <NavigationMenuItem>
+    <NavigationMenuTrigger>Games</NavigationMenuTrigger>
+    <NavigationMenuContent>
+      <NavigationMenuLink as-child>
+        <RouterLink to="/games/singleplayer">
+          Single Player Game
+        </RouterLink>
+      </NavigationMenuLink>
+
+      <NavigationMenuLink>
+        Multi Player Game
+      </NavigationMenuLink>
+    </NavigationMenuContent>
+  </NavigationMenuItem>
+
+  <!-- ABOUT -->
+  <NavigationMenuItem>
+    <NavigationMenuLink as-child>
+      <RouterLink to="/about"> About </RouterLink>
+    </NavigationMenuLink>
+  </NavigationMenuItem>
+
+  <!-- HISTORY -->
+  <NavigationMenuItem>
+    <NavigationMenuLink as-child>
+      <RouterLink to="/history"> History </RouterLink>
+    </NavigationMenuLink>
+  </NavigationMenuItem>
+
+  <!-- LOGIN / LOGOUT -->
+  <NavigationMenuItem v-if="!authStore.isLoggedIn">
+    <NavigationMenuLink>
+      <RouterLink to="/login">Login</RouterLink>
+    </NavigationMenuLink>
+  </NavigationMenuItem>
+
+  <NavigationMenuItem v-else>
+    <NavigationMenuLink>
+      <a @click.prevent="logout">Logout</a>
+    </NavigationMenuLink>
+  </NavigationMenuItem>
+</NavigationMenuList>
+
     </NavigationMenu>
   </nav>
   <div>

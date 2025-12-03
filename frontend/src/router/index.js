@@ -4,7 +4,7 @@ import AboutPage from '../pages/about/AboutPage.vue'
 import HomePage from '../pages/home/HomePage.vue'
 import SinglePlayerGamePage from '../pages/game/SinglePlayerGamePage.vue'
 import LoginPage from '../pages/login/LoginPage.vue'
-
+import HistoryPage from '../pages/history/HistoryPage.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -28,14 +28,16 @@ const router = createRouter({
       path: '/about',
       name: 'about',
       component: AboutPage,
-      // route level code-splitting
-      // this generates a separate chunk (About.[hash].js) for this route
-      // which is lazy-loaded when the route is visited.
     },
     {
       path: '/login',
       name: 'login',
       component: LoginPage,
+    },
+    {
+      path: '/history',
+      name: 'history',
+      component: HistoryPage,
     }
   ],
 })
