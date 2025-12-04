@@ -5,6 +5,7 @@ import HomePage from '../pages/home/HomePage.vue'
 import SinglePlayerGamePage from '../pages/game/SinglePlayerGamePage.vue'
 import LoginPage from '../pages/login/LoginPage.vue'
 import HistoryPage from '../pages/history/HistoryPage.vue'
+import ScoreboardsPage from '../pages/scoreboards/ScoreboardsPage.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -38,6 +39,11 @@ const router = createRouter({
       path: '/history',
       name: 'history',
       component: HistoryPage,
+    },
+    {
+      path: '/scoreboards',
+      name: 'scoreboards',
+      component: ScoreboardsPage,
     }
   ],
 })

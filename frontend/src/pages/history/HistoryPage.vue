@@ -2,6 +2,66 @@
   <div class="page">
     <h1 class="title">Match History</h1>
 
+    <!-- FILTROS -->
+    <div class="filters-section">
+      <div class="filters">
+        <button 
+          class="filter-btn" 
+          :class="{ active: typeFilter === 'all' }"
+          @click="typeFilter = 'all'; applyFilters()"
+        >
+          All Types
+        </button>
+        <button 
+          class="filter-btn" 
+          :class="{ active: typeFilter === '3' }"
+          @click="typeFilter = '3'; applyFilters()"
+        >
+          Bisca de 3
+        </button>
+        <button 
+          class="filter-btn" 
+          :class="{ active: typeFilter === '9' }"
+          @click="typeFilter = '9'; applyFilters()"
+        >
+          Bisca de 9
+        </button>
+        <button 
+          class="filter-btn" 
+          :class="{ active: resultFilter === 'win' }"
+          @click="toggleResultFilter('win')"
+        >
+          Wins
+        </button>
+        <button 
+          class="filter-btn" 
+          :class="{ active: resultFilter === 'loss' }"
+          @click="toggleResultFilter('loss')"
+        >
+          Losses
+        </button>
+        <button 
+          class="filter-btn" 
+          :class="{ active: resultFilter === 'draw' }"
+          @click="toggleResultFilter('draw')"
+        >
+          Draws
+        </button>
+      </div>
+      
+      <div class="date-filter">
+        <input 
+          type="date" 
+          v-model="dateFrom" 
+          @change="applyFilters"
+          class="date-input"
+          placeholder="From date"
+        />
+        <button @click="clearDateFilter" class="clear-date-btn">Clear Date</button>
+      </div>
+    </div>
+
+    <!-- LOADING & ERROR -->
     <div v-if="loading" class="loading">Loading...</div>
 
     <div v-if="error" class="error">
@@ -9,12 +69,32 @@
       <button @click="loadHistory" class="retry-btn">Tentar Novamente</button>
     </div>
 
+    <!-- STATS SUMMARY -->
+    <div v-if="!loading && !error && matches.length > 0 && !selectedMatch && !selectedGame" class="stats-summary">
+      <div class="stat-card">
+        <div class="stat-value">{{ totalMatches }}</div>
+        <div class="stat-label">Total Matches</div>
+      </div>
+      <div class="stat-card win">
+        <div class="stat-value">{{ wonMatches }}</div>
+        <div class="stat-label">Wins</div>
+      </div>
+      <div class="stat-card loss">
+        <div class="stat-value">{{ lostMatches }}</div>
+        <div class="stat-label">Losses</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{ winRate }}%</div>
+        <div class="stat-label">Win Rate</div>
+      </div>
+    </div>
+
+    <!-- MATCH LIST -->
     <div v-if="!loading && !selectedMatch && !selectedGame" class="section">
       <div v-if="matches.length === 0 && !loading" class="empty-text">
         Ainda não tens partidas registadas.
       </div>
 
-      <!-- Lista de matches -->
       <div class="match-list">
         <div
           v-for="match in matches"
@@ -25,12 +105,20 @@
           <div class="card-left">
             <div class="card-title">Match #{{ match.id }}</div>
             <div class="card-subtitle">
-              {{ formatDate(match.ended_at || match.began_at) }}
+              <span class="match-type" :class="match.type === '3' ? 'type-3' : 'type-9'">
+                {{ match.type === '3' ? 'Bisca de 3' : 'Bisca de 9' }}
+              </span>
+              • {{ formatDate(match.ended_at || match.began_at) }}
             </div>
           </div>
 
-          <div class="card-middle score">
-            {{ match.player1_marks || 0 }} - {{ match.player2_marks || 0 }}
+          <div class="card-middle">
+            <div class="score">
+              {{ match.player1_marks || 0 }} - {{ match.player2_marks || 0 }}
+            </div>
+            <div class="duration">
+              {{ formatDuration(match.total_time) }}
+            </div>
           </div>
 
           <div class="card-right">
@@ -48,10 +136,31 @@
       </div>
     </div>
 
-    <!-- Vista de Games dentro de um Match -->
+    <!-- GAMES IN MATCH -->
     <div v-if="selectedMatch && !selectedGame" class="section">
-      <button class="back-btn" @click="selectedMatch = null">← Back</button>
+      <button class="back-btn" @click="selectedMatch = null">← Back to Matches</button>
       <h2 class="subtitle">Games in Match #{{ selectedMatch.id }}</h2>
+      
+      <div class="match-header">
+        <div class="header-info">
+          <div class="info-row">
+            <span class="info-label">Date:</span>
+            <span class="info-value">{{ formatDate(selectedMatch.ended_at || selectedMatch.began_at) }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Type:</span>
+            <span class="info-value">{{ selectedMatch.type === '3' ? 'Bisca de 3' : 'Bisca de 9' }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Duration:</span>
+            <span class="info-value">{{ formatDuration(selectedMatch.total_time) }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Final Score:</span>
+            <span class="info-value">{{ selectedMatch.player1_marks || 0 }} - {{ selectedMatch.player2_marks || 0 }}</span>
+          </div>
+        </div>
+      </div>
 
       <div v-if="!selectedMatch.games || selectedMatch.games.length === 0" class="empty-text">
         Sem detalhes de jogos disponíveis.
@@ -85,10 +194,27 @@
       </div>
     </div>
 
-    <!-- Vista de Tricks dentro de um Game -->
+    <!-- GAME DETAILS -->
     <div v-if="selectedGame" class="section">
-      <button class="back-btn" @click="selectedGame = null">← Back</button>
+      <button class="back-btn" @click="selectedGame = null">← Back to Games</button>
       <h2 class="subtitle">Game Details</h2>
+
+      <div class="game-header">
+        <div class="header-info">
+          <div class="info-row">
+            <span class="info-label">Game Type:</span>
+            <span class="info-value">{{ selectedGame.type === '3' ? 'Bisca de 3' : 'Bisca de 9' }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Duration:</span>
+            <span class="info-value">{{ formatDuration(selectedGame.total_time) }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Played on:</span>
+            <span class="info-value">{{ formatDate(selectedGame.ended_at || selectedGame.began_at) }}</span>
+          </div>
+        </div>
+      </div>
 
       <div class="score-display">
         <div class="player-score player">
@@ -111,6 +237,21 @@
         </div>
         <div class="result-details">
           Diferença: {{ Math.abs((selectedGame.player1_points || 0) - (selectedGame.player2_points || 0)) }} pontos
+        </div>
+      </div>
+
+      <!-- ACHIEVEMENTS -->
+      <div v-if="hasAchievements(selectedGame)" class="achievements-section">
+        <h3 class="subtitle2">Achievements</h3>
+        <div class="achievements-list">
+          <div v-if="selectedGame.player1_points >= 120" class="achievement-item bandeira">
+            <span class="achievement-icon">🚩</span>
+            <span class="achievement-text">Bandeira (120 points)</span>
+          </div>
+          <div v-if="selectedGame.player1_points >= 91 && selectedGame.player1_points < 120" class="achievement-item capote">
+            <span class="achievement-icon">🎯</span>
+            <span class="achievement-text">Capote (≥91 points)</span>
+          </div>
         </div>
       </div>
 
@@ -187,7 +328,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, inject } from "vue";
+import { ref, computed, onMounted, inject, watch } from "vue";
 import axios from "axios";
 
 const apiBaseURL = inject('apiBaseURL');
@@ -196,7 +337,11 @@ const loading = ref(false);
 const error = ref(null);
 const selectedMatch = ref(null);
 const selectedGame = ref(null);
+const typeFilter = ref('all');
+const resultFilter = ref(null);
+const dateFrom = ref('');
 
+// Computed properties
 const tricks = computed(() => {
   if (!selectedGame.value || !selectedGame.value.custom) return [];
   return selectedGame.value.custom.trick_breakdown || selectedGame.value.custom.tricks || [];
@@ -214,40 +359,59 @@ const botWins = computed(() => {
   ).length;
 });
 
+const totalMatches = computed(() => matches.value.length);
+
+const wonMatches = computed(() => {
+  return matches.value.filter(match => {
+    const p1Marks = match.player1_marks || 0;
+    const p2Marks = match.player2_marks || 0;
+    return p1Marks > p2Marks;
+  }).length;
+});
+
+const lostMatches = computed(() => {
+  return matches.value.filter(match => {
+    const p1Marks = match.player1_marks || 0;
+    const p2Marks = match.player2_marks || 0;
+    return p1Marks < p2Marks;
+  }).length;
+});
+
+const winRate = computed(() => {
+  if (totalMatches.value === 0) return 0;
+  return Math.round((wonMatches.value / totalMatches.value) * 100);
+});
+
+// Methods
 const loadHistory = async () => {
   loading.value = true;
   error.value = null;
   matches.value = [];
 
   try {
-    console.log('Fetching matches from API...');
-    const response = await axios.get(`${apiBaseURL}/history/matches`);
+    const params = {};
+    if (resultFilter.value) {
+      params.result = resultFilter.value;
+    }
+    if (dateFrom.value) {
+      params.date_from = dateFrom.value;
+    }
+    
+    console.log('Fetching matches from API with params:', params);
+    const response = await axios.get(`${apiBaseURL}/history/matches`, { params });
     console.log('API Response received, status:', response.status);
     
     if (response.data && Array.isArray(response.data)) {
-      matches.value = response.data;
+      let filteredMatches = response.data;
+      
+      // Apply type filter locally
+      if (typeFilter.value !== 'all') {
+        filteredMatches = filteredMatches.filter(match => match.type === typeFilter.value);
+      }
+      
+      matches.value = filteredMatches;
       console.log(`Loaded ${matches.value.length} matches`);
       
-      if (matches.value.length > 0) {
-        console.log('First match sample:', {
-          id: matches.value[0].id,
-          player1_marks: matches.value[0].player1_marks,
-          player2_marks: matches.value[0].player2_marks,
-          stake: matches.value[0].stake,
-          custom: matches.value[0].custom,
-          hasGames: !!matches.value[0].games,
-          gamesCount: matches.value[0].games ? matches.value[0].games.length : 0
-        });
-        
-        if (matches.value[0].games && matches.value[0].games.length > 0) {
-          console.log('First game sample:', {
-            id: matches.value[0].games[0].id,
-            player1_points: matches.value[0].games[0].player1_points,
-            player2_points: matches.value[0].games[0].player2_points,
-            custom: matches.value[0].games[0].custom
-          });
-        }
-      }
     } else {
       console.warn('Unexpected response format:', response.data);
       error.value = "Formato de dados inesperado da API";
@@ -278,6 +442,24 @@ const loadHistory = async () => {
   }
 };
 
+const applyFilters = () => {
+  loadHistory();
+};
+
+const clearDateFilter = () => {
+  dateFrom.value = '';
+  loadHistory();
+};
+
+const toggleResultFilter = (result) => {
+  if (resultFilter.value === result) {
+    resultFilter.value = null;
+  } else {
+    resultFilter.value = result;
+  }
+  loadHistory();
+};
+
 const selectMatch = (match) => {
   selectedMatch.value = match;
   selectedGame.value = null;
@@ -294,8 +476,10 @@ const getMatchResult = (match) => {
   if (!match || match.player1_marks === undefined || match.player2_marks === undefined) {
     return 'unknown';
   }
-  if (match.player1_marks > match.player2_marks) return 'win';
-  if (match.player1_marks < match.player2_marks) return 'loss';
+  const p1Marks = match.player1_marks || 0;
+  const p2Marks = match.player2_marks || 0;
+  if (p1Marks > p2Marks) return 'win';
+  if (p1Marks < p2Marks) return 'loss';
   return 'draw';
 };
 
@@ -313,8 +497,10 @@ const getGameResult = (game) => {
   if (!game || game.player1_points === undefined || game.player2_points === undefined) {
     return 'unknown';
   }
-  if (game.player1_points > game.player2_points) return 'win';
-  if (game.player1_points < game.player2_points) return 'loss';
+  const p1Points = game.player1_points || 0;
+  const p2Points = game.player2_points || 0;
+  if (p1Points > p2Points) return 'win';
+  if (p1Points < p2Points) return 'loss';
   return 'draw';
 };
 
@@ -326,6 +512,11 @@ const getGameResultLabel = (game) => {
     case 'draw': return 'DRAW';
     default: return 'N/A';
   }
+};
+
+const hasAchievements = (game) => {
+  if (!game || game.player1_points === undefined) return false;
+  return game.player1_points >= 91;
 };
 
 const getCoins = (match) => {
@@ -389,6 +580,13 @@ const formatDate = (date) => {
   }
 };
 
+const formatDuration = (seconds) => {
+  if (!seconds) return "N/A";
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}m ${secs}s`;
+};
+
 onMounted(() => {
   console.log('HistoryPage mounted, API Base:', apiBaseURL);
   loadHistory();
@@ -403,33 +601,84 @@ onMounted(() => {
 }
 
 .title {
-  margin-bottom: 10px;
+  margin-bottom: 20px;
   font-size: 28px;
   font-weight: bold;
-}
-
-.subtitle {
-  font-size: 22px;
-  margin-bottom: 10px;
-}
-
-.subtitle2 {
-  margin-top: 20px;
-  margin-bottom: 10px;
-  font-size: 18px;
-}
-
-.section {
-  margin-top: 20px;
-}
-
-.empty-text {
-  padding: 10px;
-  color: #555;
   text-align: center;
-  font-style: italic;
+  color: #2c3e50;
 }
 
+/* FILTERS */
+.filters-section {
+  margin-bottom: 25px;
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.filters {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+  flex-wrap: wrap;
+}
+
+.filter-btn {
+  padding: 10px 20px;
+  border: 2px solid #007bff;
+  border-radius: 25px;
+  background: white;
+  color: #007bff;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.filter-btn.active {
+  background: #007bff;
+  color: white;
+  box-shadow: 0 3px 8px rgba(0,123,255,0.3);
+}
+
+.filter-btn:hover:not(.active) {
+  background: #e6f2ff;
+  transform: translateY(-2px);
+}
+
+.date-filter {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.date-input {
+  padding: 10px;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  flex: 1;
+  max-width: 200px;
+}
+
+.clear-date-btn {
+  padding: 10px 15px;
+  border: 2px solid #dc3545;
+  border-radius: 8px;
+  background: white;
+  color: #dc3545;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.clear-date-btn:hover {
+  background: #dc3545;
+  color: white;
+}
+
+/* LOADING & ERROR */
 .loading {
   text-align: center;
   padding: 40px;
@@ -456,7 +705,7 @@ onMounted(() => {
   border-radius: 8px;
   cursor: pointer;
   font-weight: bold;
-  transition: background 0.3s;
+  transition: all 0.3s;
 }
 
 .retry-btn:hover {
@@ -465,24 +714,79 @@ onMounted(() => {
   box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
+/* STATS SUMMARY */
+.stats-summary {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 15px;
+  margin-bottom: 25px;
+}
+
+@media (min-width: 768px) {
+  .stats-summary {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.stat-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+  border: 2px solid #e0e0e0;
+}
+
+.stat-card.win {
+  border-color: #2ecc71;
+  background: linear-gradient(135deg, #f0f9f4, #e0f2e9);
+}
+
+.stat-card.loss {
+  border-color: #e74c3c;
+  background: linear-gradient(135deg, #fef5f5, #fce4e4);
+}
+
+.stat-value {
+  font-size: 32px;
+  font-weight: bold;
+  color: #2c3e50;
+  margin-bottom: 5px;
+}
+
+.stat-card.win .stat-value {
+  color: #2ecc71;
+}
+
+.stat-card.loss .stat-value {
+  color: #e74c3c;
+}
+
+.stat-label {
+  font-size: 14px;
+  color: #7f8c8d;
+  font-weight: 600;
+}
+
+/* CARDS */
 .card {
   background: white;
   border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 12px;
+  padding: 18px;
+  margin-bottom: 15px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  box-shadow: 0px 3px 10px rgba(0,0,0,0.08);
+  box-shadow: 0 3px 10px rgba(0,0,0,0.1);
   cursor: pointer;
   transition: all 0.3s ease;
-  border: 1px solid #e0e0e0;
+  border: 2px solid #e0e0e0;
 }
 
 .card:hover {
   background: #f8f9fa;
-  transform: translateY(-2px);
-  box-shadow: 0px 5px 15px rgba(0,0,0,0.12);
+  transform: translateY(-3px);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.12);
   border-color: #007bff;
 }
 
@@ -499,14 +803,48 @@ onMounted(() => {
 .card-subtitle {
   font-size: 14px;
   color: #7f8c8d;
-  margin-top: 4px;
+  margin-top: 5px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.match-type {
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.type-3 {
+  background: #e3f2fd;
+  color: #1976d2;
+  border: 1px solid #90caf9;
+}
+
+.type-9 {
+  background: #f3e5f5;
+  color: #7b1fa2;
+  border: 1px solid #ce93d8;
 }
 
 .card-middle {
-  font-size: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0 15px;
+}
+
+.card-middle .score {
+  font-size: 24px;
   font-weight: bold;
   color: #2c3e50;
-  margin: 0 15px;
+}
+
+.card-middle .duration {
+  font-size: 12px;
+  color: #95a5a6;
+  margin-top: 3px;
 }
 
 .card-right {
@@ -568,36 +906,77 @@ onMounted(() => {
   border: 1px solid #bdbdbd;
 }
 
+/* MATCH HEADER */
+.match-header, .game-header {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+  border: 2px solid #e0e0e0;
+}
+
+.header-info {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 15px;
+}
+
+@media (min-width: 768px) {
+  .header-info {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.info-row {
+  display: flex;
+  flex-direction: column;
+}
+
+.info-label {
+  font-size: 14px;
+  color: #7f8c8d;
+  margin-bottom: 3px;
+}
+
+.info-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+/* SCORE DISPLAY */
 .score-display {
   display: flex;
   justify-content: center;
   align-items: center;
   gap: 30px;
   margin: 25px 0;
-  padding: 20px;
+  padding: 25px;
   background: white;
   border-radius: 16px;
-  box-shadow: 0px 4px 15px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
   border: 2px solid #e0e0e0;
 }
 
 .player-score {
   text-align: center;
-  padding: 15px;
-  border-radius: 12px;
-  min-width: 120px;
+  padding: 20px;
+  border-radius: 15px;
+  min-width: 140px;
   background: #f8f9fa;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.1);
 }
 
 .player-score .label {
-  font-size: 15px;
+  font-size: 16px;
   color: #666;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   font-weight: 600;
 }
 
 .player-score .value {
-  font-size: 36px;
+  font-size: 42px;
   font-weight: bold;
   text-shadow: 1px 1px 3px rgba(0,0,0,0.1);
 }
@@ -613,30 +992,31 @@ onMounted(() => {
 }
 
 .separator {
-  font-size: 36px;
+  font-size: 42px;
   font-weight: bold;
   color: #666;
-  margin: 0 10px;
+  margin: 0 15px;
 }
 
+/* RESULT SUMMARY */
 .result-summary {
   background: white;
   border-radius: 16px;
-  padding: 20px;
+  padding: 25px;
   margin: 25px 0;
   text-align: center;
-  box-shadow: 0px 4px 15px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
   border: 2px solid #e0e0e0;
 }
 
 .result-badge {
-  padding: 12px 25px;
-  border-radius: 25px;
+  padding: 15px 30px;
+  border-radius: 30px;
   font-weight: bold;
-  font-size: 18px;
+  font-size: 20px;
   display: inline-block;
-  margin-bottom: 12px;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  margin-bottom: 15px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 
 .win-badge {
@@ -655,24 +1035,67 @@ onMounted(() => {
 }
 
 .result-details {
-  font-size: 16px;
+  font-size: 18px;
   color: #666;
   font-weight: 500;
 }
 
+/* ACHIEVEMENTS */
+.achievements-section {
+  background: white;
+  border-radius: 16px;
+  padding: 25px;
+  margin: 25px 0;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  border: 2px solid #e0e0e0;
+}
+
+.achievements-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.achievement-item {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 20px;
+  border-radius: 12px;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.achievement-item.bandeira {
+  background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+  color: #1976d2;
+  border: 2px solid #90caf9;
+}
+
+.achievement-item.capote {
+  background: linear-gradient(135deg, #fff8e1, #ffecb3);
+  color: #ff9800;
+  border: 2px solid #ffb300;
+}
+
+.achievement-icon {
+  font-size: 28px;
+}
+
+/* TRICKS SUMMARY */
 .tricks-summary {
   background: white;
   border-radius: 16px;
-  padding: 20px;
+  padding: 25px;
   margin: 25px 0;
-  box-shadow: 0px 4px 15px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
   border: 2px solid #e0e0e0;
 }
 
 .tricks-count {
   font-weight: bold;
-  margin-bottom: 15px;
-  font-size: 18px;
+  margin-bottom: 20px;
+  font-size: 20px;
   color: #2c3e50;
   text-align: center;
 }
@@ -684,10 +1107,10 @@ onMounted(() => {
 
 .stat {
   flex: 1;
-  padding: 15px;
+  padding: 20px;
   border-radius: 12px;
   text-align: center;
-  box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+  box-shadow: 0 3px 10px rgba(0,0,0,0.1);
 }
 
 .player-stat {
@@ -703,8 +1126,8 @@ onMounted(() => {
 .stat-label {
   display: block;
   font-weight: bold;
-  margin-bottom: 8px;
-  font-size: 15px;
+  margin-bottom: 10px;
+  font-size: 16px;
 }
 
 .player-stat .stat-label {
@@ -716,18 +1139,19 @@ onMounted(() => {
 }
 
 .stat-value {
-  font-size: 20px;
+  font-size: 24px;
   font-weight: bold;
   color: #2c3e50;
 }
 
+/* TRICK ITEMS */
 .trick-item {
   background: white;
   border-radius: 16px;
-  padding: 20px;
+  padding: 25px;
   margin-bottom: 20px;
-  box-shadow: 0px 4px 15px rgba(0,0,0,0.1);
-  border-left: 8px solid #ddd;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  border-left: 10px solid #ddd;
   border: 2px solid #e0e0e0;
 }
 
@@ -753,36 +1177,36 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  padding-bottom: 15px;
+  margin-bottom: 25px;
+  padding-bottom: 20px;
   border-bottom: 2px solid #eee;
 }
 
 .trick-title {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .trick-num {
   font-weight: bold;
-  font-size: 18px;
+  font-size: 20px;
   color: #2c3e50;
 }
 
 .trick-points {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
 }
 
 .points-label {
-  font-size: 14px;
+  font-size: 16px;
   color: #7f8c8d;
 }
 
 .points-value {
-  font-size: 22px;
+  font-size: 26px;
   font-weight: bold;
   color: #3498db;
   text-shadow: 0 2px 4px rgba(52, 152, 219, 0.3);
@@ -791,21 +1215,21 @@ onMounted(() => {
 .trick-winner {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   align-items: flex-end;
 }
 
 .winner-label {
-  font-size: 14px;
+  font-size: 16px;
   color: #7f8c8d;
 }
 
 .winner-name {
-  padding: 8px 20px;
-  border-radius: 20px;
+  padding: 10px 25px;
+  border-radius: 25px;
   font-weight: bold;
-  font-size: 15px;
-  box-shadow: 0 3px 6px rgba(0,0,0,0.15);
+  font-size: 16px;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.15);
 }
 
 .player-winner {
@@ -823,10 +1247,10 @@ onMounted(() => {
   color: white;
 }
 
-/* NOVOS ESTILOS PARA A MENSAGEM DE RESULTADO */
+/* TRICK RESULT CONTAINER - MENSAGEM MELHORADA */
 .trick-result-container {
-  margin-top: 20px;
-  padding: 20px;
+  margin-top: 25px;
+  padding: 25px;
   border-radius: 15px;
   background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
   text-align: center;
@@ -838,13 +1262,13 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 15px;
-  margin-bottom: 12px;
+  gap: 20px;
+  margin-bottom: 15px;
   flex-wrap: wrap;
 }
 
 .result-icon {
-  font-size: 28px;
+  font-size: 35px;
   animation: bounce 0.8s ease infinite alternate;
 }
 
@@ -871,18 +1295,18 @@ onMounted(() => {
 }
 
 .result-text {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 600;
   color: #2c3e50;
   line-height: 1.5;
 }
 
 .winner-highlight {
-  font-size: 20px;
-  padding: 4px 12px;
-  border-radius: 10px;
-  margin: 0 5px;
-  box-shadow: 0 3px 6px rgba(0,0,0,0.15);
+  font-size: 22px;
+  padding: 6px 15px;
+  border-radius: 12px;
+  margin: 0 8px;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.15);
 }
 
 .player-highlight {
@@ -903,14 +1327,14 @@ onMounted(() => {
 }
 
 .points-highlight {
-  font-size: 22px;
+  font-size: 24px;
   color: #3498db;
-  margin: 0 5px;
+  margin: 0 8px;
   text-shadow: 0 2px 4px rgba(52, 152, 219, 0.3);
   background: linear-gradient(135deg, #e3f2fd, #bbdefb);
-  padding: 4px 12px;
-  border-radius: 10px;
-  box-shadow: 0 3px 6px rgba(52, 152, 219, 0.2);
+  padding: 6px 15px;
+  border-radius: 12px;
+  box-shadow: 0 3px 8px rgba(52, 152, 219, 0.2);
 }
 
 .result-action {
@@ -919,12 +1343,12 @@ onMounted(() => {
 }
 
 .game-index {
-  margin-top: 15px;
-  padding: 10px 20px;
+  margin-top: 20px;
+  padding: 12px 25px;
   background: linear-gradient(135deg, #e3f2fd, #bbdefb);
-  border-radius: 20px;
+  border-radius: 25px;
   display: inline-block;
-  font-size: 15px;
+  font-size: 16px;
   color: #1976d2;
   font-weight: 600;
   box-shadow: 0 2px 8px rgba(25, 118, 210, 0.2);
@@ -932,33 +1356,66 @@ onMounted(() => {
 }
 
 .game-icon {
-  margin-right: 8px;
-  font-size: 16px;
+  margin-right: 10px;
+  font-size: 18px;
 }
 
+/* BACK BUTTON */
 .back-btn {
   background: linear-gradient(135deg, #007bff, #0056b3);
   border: none;
   font-size: 16px;
-  margin-bottom: 15px;
+  margin-bottom: 20px;
   cursor: pointer;
   color: white;
-  padding: 10px 20px;
-  border-radius: 25px;
+  padding: 12px 25px;
+  border-radius: 30px;
   font-weight: bold;
   transition: all 0.3s;
-  box-shadow: 0 4px 8px rgba(0,123,255,0.3);
+  box-shadow: 0 4px 12px rgba(0,123,255,0.3);
 }
 
 .back-btn:hover {
   background: linear-gradient(135deg, #0056b3, #003d82);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 12px rgba(0,123,255,0.4);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 15px rgba(0,123,255,0.4);
+}
+
+/* EMPTY TEXT */
+.empty-text {
+  padding: 30px;
+  color: #7f8c8d;
+  text-align: center;
+  font-style: italic;
+  font-size: 16px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* SECTION */
+.section {
+  margin-top: 25px;
+}
+
+.subtitle {
+  font-size: 24px;
+  margin-bottom: 20px;
+  color: #2c3e50;
+  text-align: center;
+}
+
+.subtitle2 {
+  font-size: 22px;
+  margin-top: 30px;
+  margin-bottom: 20px;
+  color: #2c3e50;
+  text-align: center;
 }
 
 .match-list,
 .games-list,
 .tricks-list {
-  margin-top: 15px;
+  margin-top: 20px;
 }
 </style>
