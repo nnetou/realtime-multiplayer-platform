@@ -8,14 +8,12 @@ use Illuminate\Support\Facades\Log;
 
 class ShopController extends Controller
 {
-    // --- ROTA DE IMAGEM DE CARTA (COM CORREÇÃO DE BUFFER) ---
+    // --- ROTA DE IMAGEM DE CARTA ---
     public function getCardImage($filename)
     {
-        // Caminho exato que o teste confirmou que funciona
         $path = public_path('images/cartas/playing-cards-master/' . $filename);
 
         if (!File::exists($path)) {
-            // Fallback: Tenta na storage se não estiver na public
             $path = storage_path('app/public/images/cartas/playing-cards-master/' . $filename);
         }
 
@@ -23,12 +21,7 @@ class ShopController extends Controller
             return response()->json(['message' => 'Image not found'], 404);
         }
 
-        // === A CORREÇÃO MÁGICA ===
-        // Isto limpa qualquer espaço em branco ou lixo que tenha sido gerado
-        // antes deste ponto, garantindo que a imagem sai limpa.
-        if (ob_get_length()) {
-            ob_end_clean();
-        }
+        if (ob_get_length()) { ob_end_clean(); }
 
         return response()->file($path);
     }
@@ -44,23 +37,25 @@ class ShopController extends Controller
             return response()->json(['message' => 'Image not found'], 404);
         }
 
-        // Aplicamos a mesma correção aqui por segurança
-        if (ob_get_length()) {
-            ob_end_clean();
-        }
+        if (ob_get_length()) { ob_end_clean(); }
         
         return response()->file($path);
     }
 
-    // --- LISTAR ITENS ---
+    // --- LISTAR ITENS (CORRIGIDO PARA GUEST) ---
     public function index(Request $request)
     {
-        $user = $request->user();
-        $customData = $user->custom ?? []; 
+        // Tenta obter o utilizador via Sanctum, mas não falha se não existir token
+        $user = auth('sanctum')->user();
+        
+        // Se user for null (Guest), usamos arrays vazios para não dar erro
+        $customData = $user ? ($user->custom ?? []) : [];
         
         // 1. AVATARES
         $ownedAvatars = $customData['owned_avatars'] ?? [];
-        if ($user->photo_avatar_filename && !in_array($user->photo_avatar_filename, $ownedAvatars)) {
+        
+        // Só tenta aceder à propriedade photo_avatar_filename se o user existir
+        if ($user && $user->photo_avatar_filename && !in_array($user->photo_avatar_filename, $ownedAvatars)) {
             $ownedAvatars[] = $user->photo_avatar_filename;
         }
 
@@ -71,6 +66,7 @@ class ShopController extends Controller
         foreach ($avatarFiles as $file) {
             $filename = $file->getFilename();
             if ($filename[0] === '.' || !str_contains($filename, '.')) continue;
+            
             $avatars[] = [
                 'id' => $filename,
                 'type' => 'avatar',
@@ -78,20 +74,20 @@ class ShopController extends Controller
                 'url' => asset('api/image-proxy/' . $filename),
                 'price' => 20,
                 'owned' => in_array($filename, $ownedAvatars),
-                'equipped' => $user->photo_avatar_filename === $filename,
+                // Verifica se user existe antes de comparar
+                'equipped' => $user ? ($user->photo_avatar_filename === $filename) : false,
                 'color' => null
             ];
         }
 
         // 2. CARTAS
-        // Nomes exatos dos ficheiros que vimos no teste
         $cardFiles = ['cardflipped.png', 'cardflipped1.png', 'cardflipped2.png', 'cardflipped3.png'];
         $ownedCards = $customData['owned_cards'] ?? [];
         
-        // Garante que o default é "comprado"
         if (!in_array('cardflipped.png', $ownedCards)) {
             $ownedCards[] = 'cardflipped.png';
         }
+        
         $currentCard = $customData['equipped_card'] ?? 'cardflipped.png';
 
         $cards = [];
@@ -104,7 +100,7 @@ class ShopController extends Controller
                 'url' => asset('api/card-image-proxy/' . $filename),
                 'price' => 20,
                 'owned' => in_array($filename, $ownedCards),
-                'equipped' => $currentCard === $filename,
+                'equipped' => $user ? ($currentCard === $filename) : false,
                 'color' => null
             ];
         }
@@ -131,7 +127,7 @@ class ShopController extends Controller
                 'url' => null,
                 'price' => 20,
                 'owned' => in_array($t['id'], $ownedTables),
-                'equipped' => $currentTable === $t['id'],
+                'equipped' => $user ? ($currentTable === $t['id']) : false,
                 'color' => $t['hex']
             ];
         }
@@ -150,8 +146,11 @@ class ShopController extends Controller
         
         $itemId = $request->id;
         $type = $request->type;
-        $user = $request->user();
-        $customData = $user->custom ?? [];
+        $user = $request->user(); // Aqui precisa mesmo de user, a rota deve ser protegida
+        
+        if (!$user) return response()->json(['message' => 'Unauthorized'], 401);
+
+        $customData = $user->custom ?? []; 
         if (!is_array($customData)) $customData = [];
 
         $ownedKey = match($type) {
@@ -195,6 +194,9 @@ class ShopController extends Controller
         $itemId = $request->id;
         $type = $request->type;
         $user = $request->user();
+
+        if (!$user) return response()->json(['message' => 'Unauthorized'], 401);
+
         $customData = $user->custom ?? [];
         
         $isDefault = ($type == 'card' && $itemId == 'cardflipped.png') || ($type == 'table' && $itemId == 'green');

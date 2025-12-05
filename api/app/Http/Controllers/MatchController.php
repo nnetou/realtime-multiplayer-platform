@@ -220,12 +220,26 @@ class MatchController extends Controller
         ]);
     }
 
-    public function globalScoreboard()
+   public function globalScoreboard()
     {
         return response()->json([
-            'most_wins'        => User::where('type', 'P')->withCount('matchesWon')->orderByDesc('matches_won_count')->take(10)->get(),
-            'most_coins'       => User::where('type', 'P')->orderByDesc('coins_balance')->take(10)->get(),
-            'most_achievements'=> User::where('type', 'P')->withCount('achievements as achievements_count')->has('achievements')->orderByDesc('achievements_count')->take(10)->get(),
+            'most_wins' => User::where('type', 'P')
+                ->withCount('matchesWon')
+                ->orderByDesc('matches_won_count')
+                ->orderByDesc('updated_at')
+                ->get(),
+
+            'most_coins' => User::where('type', 'P')
+                ->orderByDesc('coins_balance')
+                ->orderByDesc('updated_at')
+                ->get(),
+
+            'most_achievements' => User::where('type', 'P')
+                ->withCount('achievements as achievements_count')
+                ->has('achievements')
+                ->orderByDesc('achievements_count')
+                ->orderByDesc('updated_at')
+                ->get(),
         ]);
     }
 }
