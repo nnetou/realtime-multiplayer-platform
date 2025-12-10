@@ -8,7 +8,7 @@ export const useAPIStore = defineStore('api', () => {
     const token = ref(sessionStorage.getItem('token'))
 
     const postGame = (game) => {
-        return axios.post(`${API_BASE_URL}/games`, game)
+        return axios.post(`${API_BASE_URL}/matches`, game)
     }
 
     // Restaurar token ao iniciar

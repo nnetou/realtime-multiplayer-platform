@@ -43,12 +43,13 @@ class MatchController extends Controller
 
     public function store(Request $request)
     {
-        // 1. Validação
+        // 1. Validação (Adicionado o campo 'type')
         $validated = $request->validate([
             'player_score'     => 'required|integer',
             'opponent_score'   => 'required|integer',
             'winner'           => 'required|string',
             'duration_seconds' => 'required|integer',
+            'type'             => 'nullable|string', // <-- CORREÇÃO 1: Aceitar o tipo
             'custom'           => 'nullable|array',
         ]);
 
@@ -78,7 +79,10 @@ class MatchController extends Controller
 
                 // --- PASSO 1: CRIAR O MATCH ---
                 $match = new MatchModel();
-                $match->type = '3';
+                
+                // <-- CORREÇÃO 2: Usar o tipo enviado ou '3' se não existir
+                $match->type = $validated['type'] ?? '3'; 
+                
                 $match->status = 'Ended';
                 $match->player1_user_id = $user->id;
                 $match->player2_user_id = $bot->id;
@@ -101,7 +105,6 @@ class MatchController extends Controller
                 $match->save();
 
                 // --- PASSO 2: GRAVAR OS DETALHES (TRICKS) ---
-                // (Isto estava a ser ignorado antes, agora corre SEMPRE)
                 if (!empty($validated['custom']['trick_breakdown'])) {
                     $trickBreakdown = $validated['custom']['trick_breakdown'];
                     
@@ -115,7 +118,10 @@ class MatchController extends Controller
                     foreach ($gamesData as $idx => $tricks) {
                         $game = new Game();
                         $game->match_id = $match->id;
-                        $game->type = '3';
+                        
+                        // <-- CORREÇÃO 3: Herdar o tipo do Match pai
+                        $game->type = $match->type;
+
                         $game->player1_user_id = $user->id;
                         $game->player2_user_id = $bot->id;
                         $game->status = 'Ended';
@@ -151,7 +157,7 @@ class MatchController extends Controller
                         $game->custom = ['trick_breakdown' => $tricks];
                         $game->save();
 
-                        // --- PASSO 2.1: ACHIEVEMENTS (Agora funcionam!) ---
+                        // --- PASSO 2.1: ACHIEVEMENTS ---
                         if ($pPoints > $bPoints && $game->winner_user_id == $user->id) {
                             $achType = null;
                             if ($pPoints == 120) $achType = 'Bandeira';
@@ -171,7 +177,6 @@ class MatchController extends Controller
                 }
 
                 // --- PASSO 3: ATUALIZAR MOEDAS ---
-                // Só cria transação se houver mudança de valor
                 if ($simulationDelta != 0) {
                     $typeName = ($simulationDelta > 0) ? 'Bonus' : 'Game fee';
                     $transType = CoinTransactionType::where('name', $typeName)->first() ?? CoinTransactionType::first();

@@ -21,16 +21,14 @@ export class BiscaEngine {
     const deck = this.createDeck();
     
     // Distribui 9 cartas para cada (como no teu Kotlin)
-    const playerHand = deck.splice(0, 9);
-    const botHand = deck.splice(0, 9);
+    const playerHand = deck.splice(0, 3);
+    const botHand = deck.splice(0, 3);
     
     let trunfo = null;
     let trunfoSuit = null;
 
     if (deck.length > 0) {
       trunfo = deck[deck.length - 1];
-      // Nota: No Kotlin removes o trunfo da lista principal, aqui mantemos a lógica visual
-      // Mas para ser fiel ao motor, removemo-lo do array de compra 'normal'
       deck.pop(); 
       trunfoSuit = trunfo.suit;
     }
@@ -47,7 +45,7 @@ export class BiscaEngine {
       playerTurn: true,
       playerStartedTrick: true,
       gameFinished: false,
-      playedCards: [] // Essencial para a IA saber o que já saiu (Boss Cards)
+      playedCards: []
     };
   }
 

@@ -60,7 +60,24 @@
     </div>
 
     <div class="bottom-section">
-      <div v-if="store.gameState.gameFinished" class="overlay">
+      <div v-if="showModeSelection" class="overlay">
+        <h1>NOVO JOGO</h1>
+        <h3 style="margin-bottom: 30px">Escolhe o modo de jogo:</h3>
+        
+        <div class="overlay-buttons">
+          <button @click="selectMode('3')" class="btn-mode">
+            BISCA DE 3
+            <span class="mode-desc">(3 cartas na mão)</span>
+          </button>
+          
+          <button @click="selectMode('9')" class="btn-mode">
+            BISCA DE 9
+            <span class="mode-desc">(9 cartas na mão)</span>
+          </button>
+        </div>
+      </div>
+
+      <div v-if="store.gameState.gameFinished && !showModeSelection" class="overlay">
         <h1>JOGO TERMINADO</h1>
 
         <h2 style="color: #f1c40f; font-size: 2rem">
@@ -69,16 +86,24 @@
 
         <h3 style="margin-bottom: 20px">{{ store.lastGameResult }}</h3>
 
-        <button @click="store.startNextGame" class="btn-next">
-          Próximo Jogo (Match: {{ store.playerMatchScore }}-{{
-            store.botMatchScore
-          }})
-        </button>
+        <div class="overlay-buttons">
+          <button @click="store.startNextGame" class="btn-next">
+            Próximo Jogo (Match: {{ store.playerMatchScore }}-{{
+              store.botMatchScore
+            }})
+          </button>
+
+          <button @click="handleForfeit" class="btn-forfeit">
+            Sair / Desistir
+          </button>
+        </div>
       </div>
+
       <div class="hand-container player-hand">
         <div v-if="store.moveError" class="error-msg">
           {{ store.moveError }}
         </div>
+        
         <div class="cards-row">
           <GameCard
             v-for="card in store.gameState.playerHand"
@@ -90,34 +115,74 @@
         </div>
       </div>
     </div>
-
-    <div v-if="store.gameState.gameFinished" class="overlay">
-      <h1>Jogo Terminado</h1>
-      <button @click="store.startNextGame" class="btn-next">
-        Próximo Jogo
-      </button>
-    </div>
   </div>
 </template>
 
 <script setup>
-import { onMounted } from "vue";
+import { onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
 import { useGameStore } from "../../stores/gameStore";
+import { useAPIStore } from "../../stores/api";
 import GameCard from "../../components/game/GameCard.vue";
+import { toast } from "vue-sonner";
 
 const store = useGameStore();
+const apiStore = useAPIStore();
+const router = useRouter();
 
-// Definimos o URL base da API manualmente, tal como fizeste no Card.js
 const API_URL = "http://localhost:8000";
-
 const cardBackUrl = `${API_URL}/images/cartas/playing-cards-master/cardflipped.png`;
 
+// Controlo do modal de seleção
+const showModeSelection = ref(false);
+
+const selectMode = (mode) => {
+  store.setMatchType(mode);
+  store.startNextGame();
+  showModeSelection.value = false;
+};
+
+// === FUNÇÃO DE DESISTIR ===
+const handleForfeit = async () => {
+  store.forfeitMatch();
+
+  const currentTime = Date.now();
+  const startTime = store.matchStartTime || currentTime; 
+  const durationSeconds = Math.floor((currentTime - startTime) / 1000);
+
+  const gamePayload = {
+    type: store.matchType, 
+    player_score: store.playerMatchScore, 
+    opponent_score: 4,
+    winner: 'bot',
+    duration_seconds: durationSeconds > 0 ? durationSeconds : 10,
+    custom: {
+        trick_breakdown: store.trickHistory, 
+        coins_change: -2 
+    }
+  };
+
+  try {
+    await apiStore.postGame(gamePayload);
+    toast.success("Match guardado. Derrota por desistência.");
+  } catch (error) {
+    console.error("Erro ao guardar jogo:", error);
+    toast.error("Erro ao comunicar com a API.");
+  } finally {
+    router.push('/');
+  }
+};
+
 onMounted(() => {
-  if (store.gameState.deck.length === 0 && !store.gameState.gameFinished) {
+  if (store.gameNumber === 1 && store.playerMatchScore === 0 && store.botMatchScore === 0 && store.gameState.deck.length === 0) {
+    showModeSelection.value = true;
+  } 
+  else if (store.gameState.deck.length === 0 && !store.gameState.gameFinished) {
     store.startNextGame();
   }
 });
 </script>
+
 <style scoped>
 :root {
   --card-width: 95px;
@@ -130,16 +195,15 @@ onMounted(() => {
   width: 100vw;
   display: flex;
   flex-direction: column;
-  justify-content: space-between; /* Espaça Topo, Meio, Fundo */
+  justify-content: space-between;
   padding: 10px;
   box-sizing: border-box;
   color: white;
-  overflow: hidden; /* Evita scrollbars */
+  overflow: hidden;
 }
 
-/* ============ ESTILOS GERAIS DE CARTAS ============ */
 .card-slot {
-  width: 95px; /* Ajusta se o teu componente GameCard tiver outro tamanho */
+  width: 95px;
   height: 135px;
   display: flex;
   justify-content: center;
@@ -154,7 +218,6 @@ onMounted(() => {
   box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
 }
 
-/* ============ SEÇÃO SUPERIOR (BOT) ============ */
 .top-section {
   height: 150px;
   display: flex;
@@ -165,29 +228,26 @@ onMounted(() => {
 .hand-container.opponent-hand {
   display: flex;
   flex-direction: row;
-  gap: 5px; /* Espaço pequeno entre as cartas do bot */
+  gap: 5px;
 }
 
-/* Efeito de "leque" ligeiro para o bot (opcional) */
 .opponent-hand .facedown-card {
-  margin-left: -40px; /* As cartas sobrepõem-se */
+  margin-left: -40px;
 }
 .opponent-hand .facedown-card:first-child {
   margin-left: 0;
 }
 
-/* ============ SEÇÃO DO MEIO (MESA) ============ */
 .middle-section {
-  flex-grow: 1; /* Ocupa o espaço disponível no meio */
+  flex-grow: 1;
   display: flex;
-  align-items: center; /* Centra verticalmente */
-  justify-content: space-between; /* Separa Esquerda, Centro, Direita */
+  align-items: center;
+  justify-content: space-between;
   padding: 0 20px;
 }
 
-/* --- Área do Deck e Trunfo (Esquerda) --- */
 .deck-trump-area {
-  flex: 1; /* Ocupa 1/3 do espaço */
+  flex: 1;
   display: flex;
   justify-content: flex-start;
   align-items: center;
@@ -195,34 +255,29 @@ onMounted(() => {
 
 .deck-container {
   position: relative;
-  width: 120px; /* Um pouco mais largo para caber o trunfo deslocado */
+  width: 120px;
   height: 135px;
 }
 
-/* O Deck virado para baixo */
 .deck-card-top {
   position: absolute;
   top: 0;
   left: 0;
   width: 95px;
   height: 135px;
-  z-index: 10; /* Fica por cima */
+  z-index: 10;
   border-radius: 8px;
   box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5);
 }
 
-/* O Trunfo por baixo */
 .trump-card-under {
   position: absolute;
-  /* Deslocamento para aparecer embaixo e à direita, como na bisca */
   top: 20px;
   left: 25px;
   width: 95px;
   height: 135px;
-  z-index: 5; /* Fica por baixo */
+  z-index: 5;
   border-radius: 8px;
-  /* Opcional: rodar o trunfo 90 graus como em alguns jogos físicos */
-  /* transform: rotate(90deg);  */
 }
 
 .trump-card-solo {
@@ -247,21 +302,18 @@ onMounted(() => {
   z-index: 15;
 }
 
-/* --- Área Central das Cartas Jogadas --- */
 .table-cards-center {
-  flex: 2; /* Ocupa 2/3 do espaço no centro */
+  flex: 2;
   display: flex;
   justify-content: center;
-  gap: 30px; /* Espaço entre as duas cartas jogadas */
+  gap: 30px;
 }
 
 .table-slot {
-  /* Placeholder visual se não houver carta */
   border: 2px dashed rgba(255, 255, 255, 0.3);
   border-radius: 8px;
 }
 
-/* --- Área Direita (Espaçador/Score) --- */
 .right-spacer {
   flex: 1;
   display: flex;
@@ -275,23 +327,11 @@ onMounted(() => {
   text-align: right;
 }
 
-/* ============ SEÇÃO INFERIOR (JOGADOR) ============ */
 .bottom-section {
   display: flex;
   flex-direction: column;
   align-items: center;
   padding-bottom: 10px;
-}
-
-.turn-indicator {
-  margin-bottom: 10px;
-  text-align: center;
-}
-.turn-indicator h2 {
-  margin: 0;
-  font-size: 1.5rem;
-  text-transform: uppercase;
-  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5);
 }
 
 .hand-container.player-hand {
@@ -300,14 +340,14 @@ onMounted(() => {
   align-items: center;
 }
 
+/* CSS ORIGINAL: Cartas em linha com flex-wrap */
 .cards-row {
   display: flex;
   justify-content: center;
-  gap: 5px; /* Espaço entre as cartas do jogador */
-  flex-wrap: wrap;
+  gap: 5px;
+  flex-wrap: wrap; /* Se forem muitas, passam para a linha de baixo */
 }
 
-/* Mensagens de erro e Overlay */
 .error-msg {
   color: #ff6b6b;
   font-weight: bold;
@@ -323,13 +363,21 @@ onMounted(() => {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.85);
+  background: rgba(0, 0, 0, 0.9);
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   z-index: 100;
 }
+
+.overlay-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  align-items: center;
+}
+
 .btn-next {
   padding: 10px 20px;
   font-size: 1.2rem;
@@ -337,5 +385,49 @@ onMounted(() => {
   border: none;
   border-radius: 5px;
   cursor: pointer;
+  min-width: 250px;
+}
+
+.btn-forfeit {
+  padding: 10px 20px;
+  font-size: 1.2rem;
+  background: #e74c3c;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  min-width: 250px;
+  transition: background 0.2s;
+}
+
+.btn-forfeit:hover {
+  background: #c0392b;
+}
+
+/* Botões do Modo de Jogo */
+.btn-mode {
+  padding: 20px 40px;
+  font-size: 1.5rem;
+  background: #3498db;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  min-width: 300px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: transform 0.2s;
+}
+
+.btn-mode:hover {
+  transform: scale(1.05);
+  background: #2980b9;
+}
+
+.mode-desc {
+  font-size: 0.9rem;
+  margin-top: 5px;
+  opacity: 0.8;
 }
 </style>
