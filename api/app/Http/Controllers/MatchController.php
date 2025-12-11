@@ -229,9 +229,11 @@ class MatchController extends Controller
     {
         return response()->json([
             'most_wins' => User::where('type', 'P')
-                ->withCount('matchesWon')
+                ->withCount('matchesWon') // Cria o campo 'matches_won_count'
+                // NOVO: Vai buscar a data máxima (mais recente) da relação matchesWon
+                ->withMax('matchesWon as last_win_date', 'ended_at') 
                 ->orderByDesc('matches_won_count')
-                ->orderByDesc('updated_at')
+                ->orderByDesc('last_win_date') // Desempata pela última vitória
                 ->get(),
 
             'most_coins' => User::where('type', 'P')
