@@ -18,8 +18,14 @@ class User extends Authenticatable
     use HasApiTokens, HasFactory, Notifiable;
 
     protected $fillable = [
-        'name', 'email', 'password', 'type', 'nickname', 
-        'blocked', 'photo_avatar_filename', 'coins_balance', 
+        'name',
+        'email',
+        'password',
+        'type',
+        'nickname',
+        'blocked',
+        'photo_avatar_filename',
+        'coins_balance',
         'custom' // <--- O 'custom' já cá estava, mantém assim.
     ];
 
@@ -30,9 +36,13 @@ class User extends Authenticatable
     {
         return Attribute::make(
             get: function () {
-                return $this->photo_avatar_filename 
-                    ? asset('storage/photos_avatars/' . $this->photo_avatar_filename)
-                    : null;
+                if ($this->photo_avatar_filename) {
+                    // Constrói o URL absoluto para a foto do utilizador
+                    return url('storage/photos_avatars/' . $this->photo_avatar_filename);
+                }
+
+                // Constrói o URL absoluto para a foto anónima
+                return url('storage/photos_avatars/anonymous.png');
             },
         );
     }
@@ -43,10 +53,10 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'blocked' => 'boolean',
         'coins_balance' => 'integer',
-        
+
         // --- MUITO IMPORTANTE ---
         // Isto faz com que o Laravel converta automaticamente o JSON da BD para Array no PHP
-        'custom' => 'array', 
+        'custom' => 'array',
     ];
 
     // Relações

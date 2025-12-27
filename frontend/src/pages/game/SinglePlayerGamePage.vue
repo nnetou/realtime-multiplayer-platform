@@ -63,13 +63,13 @@
       <div v-if="showModeSelection" class="overlay">
         <h1>NOVO JOGO</h1>
         <h3 style="margin-bottom: 30px">Escolhe o modo de jogo:</h3>
-        
+
         <div class="overlay-buttons">
           <button @click="selectMode('3')" class="btn-mode">
             BISCA DE 3
             <span class="mode-desc">(3 cartas na mão)</span>
           </button>
-          
+
           <button @click="selectMode('9')" class="btn-mode">
             BISCA DE 9
             <span class="mode-desc">(9 cartas na mão)</span>
@@ -77,7 +77,10 @@
         </div>
       </div>
 
-      <div v-if="store.gameState.gameFinished && !showModeSelection" class="overlay">
+      <div
+        v-if="store.gameState.gameFinished && !showModeSelection"
+        class="overlay"
+      >
         <h1>JOGO TERMINADO</h1>
 
         <h2 style="color: #f1c40f; font-size: 2rem">
@@ -86,7 +89,7 @@
 
         <h3 style="margin-bottom: 20px">{{ store.lastGameResult }}</h3>
 
-        <div class="overlay-buttons">
+        <div v-if="playMode === 'match'" class="overlay-buttons">
           <button @click="store.startNextGame" class="btn-next">
             Próximo Jogo (Match: {{ store.playerMatchScore }}-{{
               store.botMatchScore
@@ -97,20 +100,29 @@
             Sair / Desistir
           </button>
         </div>
+        <div v-else class="overlay-buttons">
+          <button @click="store.startNextGame" class="btn-next">
+            Novo Jogo
+          </button>
+          <button @click="router.push('/')" class="btn-next">
+            Voltar ao Menu Principal
+          </button>
+        </div>
       </div>
 
       <div class="hand-container player-hand">
         <div v-if="store.moveError" class="error-msg">
           {{ store.moveError }}
         </div>
-        
+
         <div class="cards-row">
           <GameCard
             v-for="card in store.gameState.playerHand"
             :key="card.rank.name + card.suit"
             :card="card"
             :isMyTurn="store.gameState.playerTurn"
-            @play-card="store.handlePlayerCardPlayed"
+            :isProcessing="store.gameState.isProcessingMove"
+            @play-card="store.playCard"
           />
         </div>
       </div>
@@ -119,8 +131,8 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from "vue";
-import { useRouter } from "vue-router";
+import { computed, onMounted, ref } from "vue";
+import { useRouter, useRoute } from "vue-router";
 import { useGameStore } from "../../stores/gameStore";
 import { useAPIStore } from "../../stores/api";
 import GameCard from "../../components/game/GameCard.vue";
@@ -129,9 +141,13 @@ import { toast } from "vue-sonner";
 const store = useGameStore();
 const apiStore = useAPIStore();
 const router = useRouter();
+const route = useRoute();
 
 const API_URL = "http://localhost:8000";
 const cardBackUrl = `${API_URL}/images/cartas/playing-cards-master/cardflipped.png`;
+// A rota já tem a propriedade com o modo de jogo (single_game ou match)
+const playMode = computed(() => route.meta.playMode);
+store.setPlayMode(playMode.value);
 
 // Controlo do modal de seleção
 const showModeSelection = ref(false);
@@ -145,39 +161,49 @@ const selectMode = (mode) => {
 // === FUNÇÃO DE DESISTIR ===
 const handleForfeit = async () => {
   store.forfeitMatch();
+  store.resetForNewPlay();
 
   const currentTime = Date.now();
-  const startTime = store.matchStartTime || currentTime; 
+  const startTime = store.matchStartTime || currentTime;
   const durationSeconds = Math.floor((currentTime - startTime) / 1000);
 
   const gamePayload = {
-    type: store.matchType, 
-    player_score: store.playerMatchScore, 
+    type: store.matchType,
+    player_score: store.playerMatchScore,
     opponent_score: 4,
-    winner: 'bot',
+    winner: "bot",
     duration_seconds: durationSeconds > 0 ? durationSeconds : 10,
     custom: {
-        trick_breakdown: store.trickHistory, 
-        coins_change: -2 
-    }
+      trick_breakdown: store.trickHistory,
+      coins_change: -2,
+    },
   };
 
   try {
     await apiStore.postGame(gamePayload);
-    toast.success("Match guardado. Derrota por desistência.");
+    if (playMode.value === "match")
+      toast.success("Match guardado. Derrota por desistência.");
+    else toast.success("Jogo guardado.");
   } catch (error) {
     console.error("Erro ao guardar jogo:", error);
     toast.error("Erro ao comunicar com a API.");
   } finally {
-    router.push('/');
+    router.push("/");
   }
 };
 
 onMounted(() => {
-  if (store.gameNumber === 1 && store.playerMatchScore === 0 && store.botMatchScore === 0 && store.gameState.deck.length === 0) {
+  if (
+    store.gameNumber === 1 &&
+    store.playerMatchScore === 0 &&
+    store.botMatchScore === 0 &&
+    store.gameState.deck.length === 0
+  ) {
     showModeSelection.value = true;
-  } 
-  else if (store.gameState.deck.length === 0 && !store.gameState.gameFinished) {
+  } else if (
+    store.gameState.deck.length === 0 &&
+    !store.gameState.gameFinished
+  ) {
     store.startNextGame();
   }
 });
