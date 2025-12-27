@@ -1,5 +1,14 @@
-import { serverStart } from "./server.js"
-const PORT = process.env.PORT || 3000
-serverStart(PORT)
-console.log(`Socket.io server running on port ${PORT}`)
-console.log("Waiting for connections...")
+import { Server } from "socket.io";
+
+export function serverStart(port) {
+    const io = new Server(port, {
+        cors: {
+            origin: "*",
+        }
+    });
+
+    io.on("connection", (socket) => {
+        console.log("Cliente conectado:", socket.id);
+    });
+    
+}
