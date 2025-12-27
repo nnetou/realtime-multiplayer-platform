@@ -39,6 +39,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/users/me', function (Request $request) {
         return $request->user();
     });
+    Route::put('/users/me', [AuthController::class, 'updateProfile']);
     Route::post('/logout', [AuthController::class, 'logout']);
 
     Route::post('/matches', [MatchController::class, 'store']);
@@ -47,6 +48,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/me/coins', [CoinController::class, 'getBalance']);
     Route::get('/me/coin-transactions', [CoinController::class, 'getTransactions']);
+    Route::get('/me/achievements', [AuthController::class, 'getAchievements']);
+    Route::post('/me/account/delete', [AuthController::class, 'deleteAccount']);
 
     // Ações de compra continuam protegidas
     Route::post('/shop/buy', [ShopController::class, 'buy']);

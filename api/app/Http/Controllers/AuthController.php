@@ -25,7 +25,7 @@ class AuthController extends Controller
         $token = $user->createToken('auth-token')->plainTextToken;
 
         // --- CORREÇÃO AQUI: INCLUIR O CAMPO 'type' ---
-        
+
         return response()->json([
             'token' => $token,
             'user' => [
@@ -33,13 +33,16 @@ class AuthController extends Controller
                 'name' => $user->name,
                 'nickname' => $user->nickname,
                 'coins_balance' => $user->coins_balance,
-                
+                'email' => $user->email,
+                'description' => $user->description,
+                'created_at' => $user->created_at,
+
                 // CAMPO OBRIGATÓRIO PARA A RESTRIÇÃO DE ACESSO (Onde reside 'A' ou 'P')
-                'type' => $user->type, 
+                'type' => $user->type,
 
                 // Já existia na tua versão
-                'photo_avatar_filename' => $user->photo_avatar_filename, 
-            ]  
+                'photo_avatar_filename' => $user->photo_avatar_filename,
+            ]
         ]);
     }
 
@@ -49,5 +52,70 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'Logged out successfully',
         ]);
+    }
+
+    public function updateProfile(Request $request)
+    {
+        $user = $request->user();
+
+        $request->validate([
+            'name' => 'required|string|max:255|unique:users,name,' . $user->id,
+            'email' => 'required|email|unique:users,email,' . $user->id,
+            'nickname' => 'required|string|max:255|unique:users,nickname,' . $user->id . '|regex:/^\S+$/',
+            'password' => 'nullable|string|min:3',
+            'description' => 'nullable|string|max:500',
+            'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+        ]);
+
+        $data = [
+            'name' => $request->name,
+            'email' => $request->email,
+            'nickname' => $request->nickname,
+            'description' => $request->description,
+        ];
+
+        if ($request->filled('password')) {
+            $data['password'] = bcrypt($request->password);
+        }
+
+        if ($request->hasFile('photo')) {
+            // Delete old photo if exists
+            if ($user->photo_avatar_filename && $user->photo_avatar_filename !== 'anonymous.png') {
+                \Storage::disk('public')->delete('photos_avatars/' . $user->photo_avatar_filename);
+            }
+
+            $filename = time() . '_' . $user->id . '.' . $request->file('photo')->getClientOriginalExtension();
+            $request->file('photo')->storeAs('photos_avatars', $filename, 'public');
+            $data['photo_avatar_filename'] = $filename;
+        }
+
+        $user->update($data);
+
+        return response()->json([
+            'message' => 'Profile updated successfully',
+            'user' => $user->fresh(),
+        ]);
+    }
+
+    public function getAchievements(Request $request)
+    {
+        $user = $request->user();
+        $achievements = $user->achievements()->get();
+        return response()->json($achievements);
+    }
+
+    public function deleteAccount(Request $request)
+    {
+        $user = $request->user();
+
+        // Prevent admins from deleting their own accounts
+        if ($user->type === 'A') {
+            return response()->json(['error' => 'Administrators cannot delete their own accounts'], 403);
+        }
+
+        // Soft delete the user
+        $user->delete();
+
+        return response()->json(['message' => 'Account deleted successfully']);
     }
 }

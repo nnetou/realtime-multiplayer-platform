@@ -46,7 +46,7 @@
             <RouterLink v-if="!authStore.isLoggedIn" to="/login"
               >Login</RouterLink
             >
-            <a v-else @click.prevent="logout">Logout</a>
+            <a v-else @click.prevent="logout" class="logout-link">Logout</a>
           </NavigationMenuLink>
         </NavigationMenuItem>
       </NavigationMenuList>
@@ -100,16 +100,22 @@ onMounted(() => {
 <style scoped>
 :deep(.user-badge-btn) {
   font-size: 0.75rem;
-  background-color: #1e8449;
-  color: var(--secondary);
+  background-color: #f3f4f6;
+  color: #1f2937;
   margin-left: 1rem;
   box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
   border-radius: 0.75rem;
-  border: 1px solid var(--secondary);
-  transition: transform 0.2s ease-in-out, border-color 0.2s ease-in-out;
+  border: 1px solid rgba(229, 231, 235, 0.5);
+  transition: all 0.2s ease-in-out;
 }
 
 :deep(.user-badge-btn:hover) {
   transform: translateY(-4px);
+}
+
+:deep(.logout-link:hover) {
+  background-color: #007bff;
+  color: white;
+  transform: scale(1.05);
 }
 </style>

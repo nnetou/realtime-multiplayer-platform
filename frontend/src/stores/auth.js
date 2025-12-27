@@ -35,6 +35,9 @@ export const useAuthStore = defineStore('auth', () => {
         currentUser.value = undefined
         socketStore.emitLeave()
     }
+    const setUser = (user) => {
+        currentUser.value = user
+    }
     restoreUser()
     return {
         currentUser,
@@ -42,5 +45,6 @@ export const useAuthStore = defineStore('auth', () => {
         restoreUser,
         login,
         logout,
+        setUser,
     }
 })

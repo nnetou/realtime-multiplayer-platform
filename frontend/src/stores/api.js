@@ -40,12 +40,21 @@ export const useAPIStore = defineStore('api', () => {
         return axios.get(`${API_BASE_URL}/users/me`)
     }
 
+    const putUser = (data) => {
+        return axios.put(`${API_BASE_URL}/users/me`, data, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        })
+    }
+
     return {
         postGame,
         getGames,
         postLogin,
         postLogout,
         getAuthUser,
+        putUser,
         token
     }
 })

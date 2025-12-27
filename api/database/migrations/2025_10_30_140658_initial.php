@@ -28,6 +28,9 @@ return new class extends Migration
             // Brain Coin Balance
             $table->integer('coins_balance')->default(0);
 
+            // User Description -> new column
+            $table->integer('description')->nullable();
+
             // Users can be deleted with "soft deletes"
             $table->softDeletes();
 
