@@ -1,5 +1,29 @@
-import { addUser, removeUser, getUserCount, getUser } from "../state/connection.js"
-import { getGames, interruptGame } from "../state/game.js";
+const users = new Map()
+export const addUser = (socket, user) => {
+    users.set(socket.id, user)
+}
+export const removeUser = (socketID) => {
+    const userToDelete = { ...users.get(socketID) }
+    users.delete(socketID)
+    return userToDelete
+}
+export const getUser = (socketID) => {
+    return users.get(socketID)
+}
+export const getUserByID = (userID) => {
+    for (let [socketID, user] of users.entries()) {
+        if (user.id == userID) {
+            return {
+                user,
+                socketID,
+            }
+        }
+    }
+    return null
+}
+export const getUserCount = () => {
+    return users.size
+}
 
 export const handleConnectionEvents = (io, socket) => {
     socket.on("join", (user) => {
@@ -24,20 +48,8 @@ export const handleConnectionEvents = (io, socket) => {
     })
 
     socket.on("disconnect", () => {
-        const user = getUser(socket.id);
-        if (user) {
-            // 2. VERIFICA SE O JOGADOR ESTAVA NUM JOGO ATIVO
-            const activeGame = getGames().find(g => g.status === 'Playing' && (g.player1.id === user.id || g.player2?.id === user.id));
-
-            if (activeGame) {
-                // Interrompe o jogo e notifica o outro jogador
-                interruptGame(activeGame.id);
-                io.to(`game-${activeGame.id}`).emit('game:interrupted', { message: `${user.nickname} has disconnected.` });
-                // Atualiza a lista de jogos para todos
-                io.emit('games', getGames());
-            }
-        }
-        removeUser(socket.id);
-        console.log(`[Connection] User disconnected. ${getUserCount()} users online.`);
-    });
+        console.log("Connection Lost:", socket.id)
+        const user = removeUser(socket.id)
+        console.log(`[Connection] ${getUserCount()} users online`)
+    })
 }

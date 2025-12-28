@@ -16,7 +16,9 @@
       </div>
 
       <div class="flex items-center gap-3">
-        <div class="coins-icon">🪙</div>
+        <Button @click="router.push({ name: 'profile' })" size="sm" variant="outline">
+          Profile
+        </Button>
         <div class="flex items-baseline gap-3">
           <span class="text-xl text-gray-600">Coins</span>
           <p class="font-bold text-xl text-[#2c3e50]">

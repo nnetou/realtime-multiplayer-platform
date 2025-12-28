@@ -3,20 +3,23 @@ import { io } from 'socket.io-client'
 import { createPinia } from 'pinia'
 
 import App from './App.vue'
-
 import router from './router'
 
 import { useAuthStore } from './stores/auth.js'
 import { useSocketStore } from './stores/socket.js'
 
+const apiDomain = import.meta.env.VITE_API_DOMAIN
+const wsConnection = import.meta.env.VITE_WS_CONNECTION
 
-const API_BASE_URL = 'http://localhost:8000/api'
+console.log('[main.js] api domain', apiDomain)
+console.log('[main.js] ws connection', wsConnection)
 
 const app = createApp(App)
 
-const socket = io('http://localhost:3000')
-app.provide('socket', socket)
-app.provide('apiBaseURL', API_BASE_URL)
+app.provide('socket', io(wsConnection))
+
+app.provide('serverBaseURL', `http://${apiDomain}`)
+app.provide('apiBaseURL', `http://${apiDomain}/api`)
 
 app.use(createPinia())
 app.use(router)
@@ -24,4 +27,9 @@ app.use(router)
 app.mount('#app')
 
 const authStore = useAuthStore()
-await authStore.restoreUser()
+
+authStore.restoreUser().then(() => {
+    console.log('User restoration complete.')
+}).catch(error => {
+    console.error('Error restoring user:', error)
+})

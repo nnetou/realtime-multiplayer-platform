@@ -11,6 +11,8 @@ import MultiPlayerGamePage from '../pages/game/MultiPlayerGamePage.vue'
 import LoginPage from '../pages/login/LoginPage.vue'
 import HistoryPage from '../pages/history/HistoryPage.vue'
 import ScoreboardsPage from '../pages/scoreboards/ScoreboardsPage.vue'
+import ProfilePage from '../pages/profile/ProfilePage.vue'
+import ProfileEditPage from '../pages/profile/ProfileEditPage.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -77,6 +79,18 @@ const router = createRouter({
       path: '/login',
       name: 'login',
       component: LoginPage,
+    },
+    {
+      path: '/profile',
+      name: 'profile',
+      component: ProfilePage,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/profile/edit',
+      name: 'profile-edit',
+      component: ProfileEditPage,
+      meta: { requiresAuth: true },
     },
     {
       path: '/history',

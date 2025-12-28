@@ -1,21 +1,14 @@
-import { Server } from "socket.io"
-import { handleConnectionEvents } from "./events/connection.js"
-import { handleGameEvents } from "./events/game.js"
+import { Server } from "socket.io";
 
-export const server = {
-    io: null,
-}
-
-export const serverStart = (port) => {
-    server.io = new Server(port, {
+export function serverStart(port) {
+    const io = new Server(port, {
         cors: {
             origin: "*",
-        },
-    })
-    server.io.on("connection", (socket) => {
-        console.log("New connection:", socket.id)
+        }
+    });
 
-        handleConnectionEvents(server.io, socket)
-        handleGameEvents(server.io, socket)
-    })
+    io.on("connection", (socket) => {
+        console.log("Cliente conectado:", socket.id);
+    });
+
 }

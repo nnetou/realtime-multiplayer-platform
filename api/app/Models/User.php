@@ -9,13 +9,11 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 
-// Importar models
-use App\Models\MatchModel;
-use App\Models\Achievement;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
 
     protected $fillable = [
         'name',
@@ -26,7 +24,8 @@ class User extends Authenticatable
         'blocked',
         'photo_avatar_filename',
         'coins_balance',
-        'custom' // <--- O 'custom' já cá estava, mantém assim.
+        'description',
+        'custom'
     ];
 
     protected $appends = ['photo_url'];
@@ -37,11 +36,9 @@ class User extends Authenticatable
         return Attribute::make(
             get: function () {
                 if ($this->photo_avatar_filename) {
-                    // Constrói o URL absoluto para a foto do utilizador
                     return url('storage/photos_avatars/' . $this->photo_avatar_filename);
                 }
 
-                // Constrói o URL absoluto para a foto anónima
                 return url('storage/photos_avatars/anonymous.png');
             },
         );
@@ -49,17 +46,16 @@ class User extends Authenticatable
 
     protected $hidden = ['password', 'remember_token'];
 
+    protected $dates = ['deleted_at'];
+
     protected $casts = [
         'email_verified_at' => 'datetime',
         'blocked' => 'boolean',
         'coins_balance' => 'integer',
-
-        // --- MUITO IMPORTANTE ---
-        // Isto faz com que o Laravel converta automaticamente o JSON da BD para Array no PHP
         'custom' => 'array',
     ];
 
-    // Relações
+
     public function matchesWon()
     {
         return $this->hasMany(MatchModel::class, 'winner_user_id');
