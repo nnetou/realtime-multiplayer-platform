@@ -1,17 +1,23 @@
 <template>
-  <div class="game-page">
-    <div class="top-section bot-hand-area">
-      <div class="hand-container opponent-hand">
+  <!-- Adiciona um v-if no topo para só renderizar quando o estado básico existir -->
+  <div v-if="store.gameState.id" class="game-page">
+    <!-- ÁREA DO OPONENTE -->
+    <div class="top-section opponent-hand-area">
+      <div class="player-info" v-if="opponent">
+        <h3>{{ opponent.nickname }}</h3>
+      </div>
+      <div v-if="store.gameState.botHand" class="hand-container opponent-hand">
         <div
           v-for="n in store.gameState.botHand.length"
           :key="n"
           class="card-slot facedown-card"
         >
-          <img :src="cardBackUrl" alt="Bot Card" />
+          <img :src="cardBackUrl" alt="Opponent Card" />
         </div>
       </div>
     </div>
 
+    <!-- ÁREA DO MEIO (Mesa, Baralho, Pontuação) -->
     <div class="middle-section">
       <div class="deck-trump-area">
         <div class="deck-container" v-if="store.gameState.deck.length > 0">
@@ -52,81 +58,62 @@
       </div>
 
       <div class="right-spacer">
-        <div class="score-board">
-          <p>Player: {{ store.playerMatchScore }}</p>
-          <p>Bot: {{ store.botMatchScore }}</p>
+        <!-- Usa as novas propriedades computadas para o placar -->
+        <div class="score-board" v-if="player && opponent">
+          <p>{{ player.nickname }}: {{ store.gameState.playerScore }}</p>
+          <p>{{ opponent.nickname }}: {{ store.gameState.botScore }}</p>
         </div>
       </div>
     </div>
 
+    <!-- ÁREA DO JOGADOR -->
     <div class="bottom-section">
-      <div v-if="showModeSelection" class="overlay">
-        <h1>NOVO JOGO</h1>
-        <h3 style="margin-bottom: 30px">Escolhe o modo de jogo:</h3>
-
-        <div class="overlay-buttons">
-          <button @click="selectMode('3')" class="btn-mode">
-            BISCA DE 3
-            <span class="mode-desc">(3 cartas na mão)</span>
-          </button>
-
-          <button @click="selectMode('9')" class="btn-mode">
-            BISCA DE 9
-            <span class="mode-desc">(9 cartas na mão)</span>
-          </button>
-        </div>
-      </div>
-
-      <div
-        v-if="store.gameState.gameFinished && !showModeSelection"
-        class="overlay"
-      >
+      <!-- Overlay de Fim de Jogo (simplificado para multiplayer) -->
+      <div v-if="store.gameState.gameFinished" class="overlay">
         <h1>JOGO TERMINADO</h1>
-
         <h2 style="color: #f1c40f; font-size: 2rem">
           {{ store.gameState.playerScore }} - {{ store.gameState.botScore }}
         </h2>
-
         <h3 style="margin-bottom: 20px">{{ store.lastGameResult }}</h3>
-
-        <div v-if="playMode === 'match'" class="overlay-buttons">
-          <button @click="store.startNextGame" class="btn-next">
-            Próximo Jogo (Match: {{ store.playerMatchScore }}-{{
-              store.botMatchScore
-            }})
-          </button>
-
-          <button @click="handleForfeit" class="btn-forfeit">
-            Sair / Desistir
-          </button>
-        </div>
-        <div v-else class="overlay-buttons">
-          <button @click="store.startNextGame" class="btn-next">
-            Novo Jogo
-          </button>
-          <button @click="router.push('/')" class="btn-next">
-            Voltar ao Menu Principal
+        <div class="overlay-buttons">
+          <button @click="router.push({ name: 'lobby' })" class="btn-next">
+            Voltar ao Lobby
           </button>
         </div>
       </div>
 
-      <div class="hand-container player-hand">
+      <div class="player-info" v-if="player">
+        <h3>{{ player.nickname }} (You)</h3>
+      </div>
+      <!-- Usa a nova propriedade 'myHand' -->
+      <div v-if="store.gameState.playerHand" class="hand-container player-hand">
         <div v-if="store.moveError" class="error-msg">
           {{ store.moveError }}
         </div>
-
         <div class="cards-row">
           <GameCard
             v-for="card in store.gameState.playerHand"
             :key="card.rank.name + card.suit"
             :card="card"
-            :isMyTurn="store.gameState.playerTurn"
+            :isPlayable="isMyTurn"
             :isProcessing="store.gameState.isProcessingMove"
             @play-card="store.playCard"
           />
+          {{
+            console.log(
+              "Is my turn:",
+              isMyTurn,
+              "Is processing:",
+              store.gameState.isProcessingMove
+            )
+          }}
         </div>
       </div>
     </div>
+  </div>
+  <!-- Ecrã de carregamento enquanto o estado não chega -->
+  <div v-else class="loading-screen">
+    <h1>Connecting to game...</h1>
   </div>
 </template>
 
@@ -134,79 +121,78 @@
 import { computed, onMounted, ref } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useGameStore } from "../../stores/gameStore";
-import { useAPIStore } from "../../stores/api";
+import { useAuthStore } from "@/stores/auth";
 import GameCard from "../../components/game/GameCard.vue";
 import { toast } from "vue-sonner";
 
 const store = useGameStore();
-const apiStore = useAPIStore();
+const authStore = useAuthStore();
 const router = useRouter();
 const route = useRoute();
 
 const API_URL = "http://localhost:8000";
 const cardBackUrl = `${API_URL}/images/cartas/playing-cards-master/cardflipped.png`;
-// A rota já tem a propriedade com o modo de jogo (single_game ou match)
-const playMode = computed(() => route.meta.playMode);
-store.setPlayMode(playMode.value);
 
-// Controlo do modal de seleção
-const showModeSelection = ref(false);
+const isPlayer1 = computed(() => {
+  if (!authStore.currentUser || !store.gameState.player1) return false;
+  return store.gameState.player1.id === authStore.currentUser.id;
+});
 
-const selectMode = (mode) => {
-  store.setMatchType(mode);
-  store.startNextGame();
-  showModeSelection.value = false;
-};
+// O objeto do jogador local
+const player = computed(() =>
+  isPlayer1.value ? store.gameState.player1 : store.gameState.player2
+);
 
-// === FUNÇÃO DE DESISTIR ===
-const handleForfeit = async () => {
-  store.forfeitMatch();
-  store.resetForNewPlay();
+// O objeto do oponente
+const opponent = computed(() =>
+  isPlayer1.value ? store.gameState.player2 : store.gameState.player1
+);
 
-  const currentTime = Date.now();
-  const startTime = store.matchStartTime || currentTime;
-  const durationSeconds = Math.floor((currentTime - startTime) / 1000);
-
-  const gamePayload = {
-    type: store.matchType,
-    player_score: store.playerMatchScore,
-    opponent_score: 4,
-    winner: "bot",
-    duration_seconds: durationSeconds > 0 ? durationSeconds : 10,
-    custom: {
-      trick_breakdown: store.trickHistory,
-      coins_change: -2,
-    },
-  };
-
-  try {
-    await apiStore.postGame(gamePayload);
-    if (playMode.value === "match")
-      toast.success("Match guardado. Derrota por desistência.");
-    else toast.success("Jogo guardado.");
-  } catch (error) {
-    console.error("Erro ao guardar jogo:", error);
-    toast.error("Erro ao comunicar com a API.");
-  } finally {
-    router.push("/");
+// Determina se é a vez do jogador local
+const isMyTurn = computed(() => {
+  // Garante que os dados necessários existem antes de fazer a verificação
+  if (!player.value.id || !authStore.currentUser) {
+    return false;
   }
-};
+  return player.value.id === authStore.currentUser.id;
+});
+
+console.log(
+  "[MultiPlayerGamePage] isProcessingMove:",
+  store.gameState.isProcessingMove
+);
 
 onMounted(() => {
-  if (
-    store.gameNumber === 1 &&
-    store.playerMatchScore === 0 &&
-    store.botMatchScore === 0 &&
-    store.gameState.deck.length === 0
-  ) {
-    showModeSelection.value = true;
-  } else if (
-    store.gameState.deck.length === 0 &&
-    !store.gameState.gameFinished
-  ) {
-    store.startNextGame();
+  console.log(
+    `[MultiPlayerGamePage] Mounted for game ID: ${store.gameState.id}.`
+  );
+
+  // Verifica se o estado do jogo na store corresponde ao ID da rota.
+  // Se não corresponder, significa que o utilizador deu refresh ou entrou por um link direto.
+  if (!store.gameState.id) {
+    toast.error("Game state not found. Returning to lobby.");
+    router.push({ name: "lobby" });
+    return;
   }
+
+  //VER SE ESTÁ CORRETO
+  if (store.gameState.deck.length === 0 && !store.gameState.gameFinished) {
+    store.startGame();
+  }
+  // A página está pronta. A socketStore já está a ouvir os eventos do jogo.
 });
+
+// try {
+//   await apiStore.postGame(gamePayload);
+//   if (playMode.value === "match")
+//     toast.success("Match guardado. Derrota por desistência.");
+//   else toast.success("Jogo guardado.");
+// } catch (error) {
+//   console.error("Erro ao guardar jogo:", error);
+//   toast.error("Erro ao comunicar com a API.");
+// } finally {
+//   router.push("/");
+// }
 </script>
 
 <style scoped>

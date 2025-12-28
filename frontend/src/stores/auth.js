@@ -1,15 +1,17 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useAPIStore } from './api'
-import { useSocketStore } from './socket.js'
+import { useSocketStore } from './socket'
 
 export const useAuthStore = defineStore('auth', () => {
+
     const apiStore = useAPIStore()
     const currentUser = ref(undefined)
     const socketStore = useSocketStore()
     const isLoggedIn = computed(() => {
         return currentUser.value !== undefined
     })
+
     const restoreUser = async () => {
         const token = sessionStorage.getItem('token')
         if (token) {
@@ -26,8 +28,8 @@ export const useAuthStore = defineStore('auth', () => {
     const login = async (credentials) => {
         await apiStore.postLogin(credentials)
         const response = await apiStore.getAuthUser()
-        socketStore.emitJoin(currentUser.value)
         currentUser.value = response.data
+        socketStore.emitJoin(currentUser.value)
         return response.data
     }
     const logout = async () => {

@@ -189,9 +189,9 @@ const startGame = (mode) => {
   gameStore.setPlayMode(mode);
   // 2. Navega para a rota correspondente
   if (gameStore.playMode === "single_game") {
-    router.push({ name: "quick-game" });
+    router.push({ name: "singleplayer-quick-game" });
   } else {
-    router.push({ name: "full-match" });
+    router.push({ name: "singleplayer-full-match" });
   }
 };
 </script>

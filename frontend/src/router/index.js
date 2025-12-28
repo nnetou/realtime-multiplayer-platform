@@ -22,48 +22,51 @@ const router = createRouter({
     },
     {
       path: '/game',
-      children: [{
-        path: 'singleplayer',
-        children: [
-          {
-            // Rota para um jogo rápido: /game/quick
-            path: 'quick',
-            name: 'quick-game',
-            component: SinglePlayerGamePage,
-            // Propriedade meta para identificar facilmente o modo
-            meta: { playMode: 'single_game' }
-          },
-          {
-            // Rota para uma match: /game/match
-            path: 'match',
-            name: 'full-match',
-            component: SinglePlayerGamePage,
-            meta: { playMode: 'match' }
-          }
-        ],
-        path: 'multiplayer',
-        children: [
-          {
-            path: 'lobby',
-            name: 'lobby',
-            component: MultiPlayerLobbyPage,
-            meta: { requiresAuth: true }
-          },
-          {
-            path: 'quick',
-            name: 'quick-game',
-            component: MultiPlayerGamePage,
-            meta: { playMode: 'single_game' }
-          },
-          {
-            path: 'match',
-            name: 'full-match',
-            component: MultiPlayerGamePage,
-            meta: { playMode: 'match' }
-          },
-        ]
+      children: [
+        {
+          path: 'singleplayer',
+          children: [
+            {
+              // Rota para um jogo rápido: /game/singleplayer/quick
+              path: 'quick',
+              name: 'singleplayer-quick-game',
+              component: SinglePlayerGamePage,
+              // Propriedade meta para identificar facilmente o modo
+              meta: { playMode: 'single_game' }
+            },
+            {
+              // Rota para uma match: /game/singleplayer/match
+              path: 'match',
+              name: 'singleplayer-full-match',
+              component: SinglePlayerGamePage,
+              meta: { playMode: 'match' }
+            }
+          ]
+        },
+        {
+          path: 'multiplayer',
+          children: [
+            {
+              path: 'lobby',
+              name: 'lobby',
+              component: MultiPlayerLobbyPage,
+              meta: { requiresAuth: true }
+            },
+            {
+              path: 'quick',
+              name: 'multiplayer-quick-game',
+              component: MultiPlayerGamePage,
+              meta: { playMode: 'single_game' }
+            },
+            {
+              path: 'match',
+              name: 'multiplayer-full-match',
+              component: MultiPlayerGamePage,
+              meta: { playMode: 'match' }
+            },
+          ]
 
-      }]
+        }]
     },
     {
       path: '/about',
@@ -90,8 +93,12 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
+  if (!authStore.isAuthReady) {
+    // ...espere que ela termine.
+    await authStore.restoreUser();
+  }
   if (to.meta.requiresAuth && !authStore.isLoggedIn) {
     toast.error('This navigation requires authentication')
     next({ name: 'login' })

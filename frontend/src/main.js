@@ -7,6 +7,7 @@ import App from './App.vue'
 import router from './router'
 
 import { useAuthStore } from './stores/auth.js'
+import { useSocketStore } from './stores/socket.js'
 
 
 const API_BASE_URL = 'http://localhost:8000/api'
