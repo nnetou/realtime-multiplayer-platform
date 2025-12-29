@@ -1,14 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { Toaster } from "@/components/ui/sonner";
 import { toast } from "vue-sonner";
-import HomeView from '../views/HomeView.vue'
-import AboutPage from '../pages/about/AboutPage.vue'
 import HomePage from '../pages/home/HomePage.vue'
 import SinglePlayerGamePage from '../pages/game/SinglePlayerGamePage.vue'
 import MultiPlayerLobbyPage from '../pages/game/MultiPlayerLobbyPage.vue'
 import MultiPlayerGamePage from '../pages/game/MultiPlayerGamePage.vue'
 import LoginPage from '../pages/login/LoginPage.vue'
+import AboutPage from '../pages/about/AboutPage.vue'
 import HistoryPage from '../pages/history/HistoryPage.vue'
 import ScoreboardsPage from '../pages/scoreboards/ScoreboardsPage.vue'
 import ProfilePage from '../pages/profile/ProfilePage.vue'
@@ -24,48 +22,48 @@ const router = createRouter({
     },
     {
       path: '/game',
-      children: [{
-        path: 'singleplayer',
-        children: [
-          {
-            // Rota para um jogo rápido: /game/quick
-            path: 'quick',
-            name: 'quick-game',
-            component: SinglePlayerGamePage,
-            // Propriedade meta para identificar facilmente o modo
-            meta: { playMode: 'single_game' }
-          },
-          {
-            // Rota para uma match: /game/match
-            path: 'match',
-            name: 'full-match',
-            component: SinglePlayerGamePage,
-            meta: { playMode: 'match' }
-          }
-        ],
-        path: 'multiplayer',
-        children: [
-          {
-            path: 'lobby',
-            name: 'lobby',
-            component: MultiPlayerLobbyPage,
-            meta: { requiresAuth: true }
-          },
-          {
-            path: 'quick',
-            name: 'quick-game',
-            component: MultiPlayerGamePage,
-            meta: { playMode: 'single_game' }
-          },
-          {
-            path: 'match',
-            name: 'full-match',
-            component: MultiPlayerGamePage,
-            meta: { playMode: 'match' }
-          },
-        ]
-
-      }]
+      children: [
+        {
+          path: 'singleplayer',
+          children: [
+            {
+              path: 'quick',
+              name: 'quick-game', // CORRIGIDO: match com HomeView
+              component: SinglePlayerGamePage,
+              meta: { playMode: 'single_game', requiresAuth: true } // Opcional: proteger jogo
+            },
+            {
+              path: 'match',
+              name: 'full-match', // CORRIGIDO: match com HomeView
+              component: SinglePlayerGamePage,
+              meta: { playMode: 'match', requiresAuth: true }
+            }
+          ]
+        },
+        {
+          path: 'multiplayer',
+          children: [
+            {
+              path: 'lobby',
+              name: 'lobby',
+              component: MultiPlayerLobbyPage,
+              meta: { requiresAuth: true }
+            },
+            {
+              path: 'quick',
+              name: 'mp-quick-game',
+              component: MultiPlayerGamePage,
+              meta: { playMode: 'single_game', requiresAuth: true }
+            },
+            {
+              path: 'match',
+              name: 'mp-full-match',
+              component: MultiPlayerGamePage,
+              meta: { playMode: 'match', requiresAuth: true }
+            },
+          ]
+        }
+      ]
     },
     {
       path: '/about',
@@ -104,10 +102,13 @@ const router = createRouter({
   ],
 })
 
+// === GUARDA DE NAVEGAÇÃO CORRIGIDO ===
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore()
-  if (to.meta.requiresAuth && !authStore.isLoggedIn) {
-    toast.error('This navigation requires authentication')
+  
+  // CORREÇÃO: Usar isAuthenticated em vez de isLoggedIn
+  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+    toast.error('Esta navegação requer autenticação')
     next({ name: 'login' })
   } else {
     next()

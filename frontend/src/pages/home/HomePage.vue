@@ -1,16 +1,18 @@
 <template>
   <div class="min-h-screen bg-[#1e8449] p-5 flex flex-col items-center">
-    <div v-if="authStore.currentUser" class="home-page-card flex">
+    
+    <div v-if="authStore.user" class="home-page-card flex">
       <div class="flex items-center gap-3">
         <img
-          :src="authStore.currentUser?.photo_url"
-          alt="User"
-          class="h-10 w-10 rounded-full border-2"
+          :src="getUserAvatar()"
+          alt="User Avatar"
+          class="h-10 w-10 rounded-full border-2 bg-white object-cover"
+          @error="handleImageError"
         />
         <div class="flex items-baseline gap-2">
           <span class="text-xl text-gray-600">Welcome,</span>
           <p class="font-bold text-xl text-[#2c3e50]">
-            {{ authStore.currentUser?.nickname || authStore.currentUser?.name }}
+            {{ authStore.user?.nickname || authStore.user?.name || "Jogador" }}
           </p>
         </div>
       </div>
@@ -22,31 +24,21 @@
         <div class="flex items-baseline gap-3">
           <span class="text-xl text-gray-600">Coins</span>
           <p class="font-bold text-xl text-[#2c3e50]">
-            {{ authStore.currentUser?.coins_balance }}
+            {{ authStore.user?.coins_balance || 0 }}
           </p>
         </div>
       </div>
     </div>
 
-    <!-- <div
-      class="mb-10 flex flex-col lg:flex-row gap-5 w-full max-w-md lg:max-w-4xl home-page-card"
-    >  -->
     <div class="w-full max-w-4xl mb-10 home-page-card">
       <h2 class="text-3xl font-bold text-[#2c3e50] text-center mb-6">
         Play a Game
       </h2>
       <div class="flex flex-col lg:flex-row gap-5 w-full">
-        <Card
-          class="flex flex-col w-full shadow-lg border-2 border-gray-200 rounded-xl"
-        >
+        <Card class="flex flex-col w-full shadow-lg border-2 border-gray-200 rounded-xl">
           <CardHeader class="text-center">
-            <!-- 3. Títulos e descrições estilizados com classes -->
-            <CardTitle class="text-3xl font-bold text-[#2c3e50]"
-              >Single Player</CardTitle
-            >
-            <CardDescription class="text-base text-[#7f8c8d] pt-1"
-              >Play alone against a bot!</CardDescription
-            >
+            <CardTitle class="text-3xl font-bold text-[#2c3e50]">Single Player</CardTitle>
+            <CardDescription class="text-base text-[#7f8c8d] pt-1">Play alone against a bot!</CardDescription>
           </CardHeader>
           <CardContent class="flex justify-center gap-4 mt-auto pt-6">
             <Button
@@ -68,90 +60,65 @@
           </CardContent>
         </Card>
 
-        <!-- Card de Multi Player -->
-        <Card
-          class="flex flex-col w-full shadow-lg border-2 border-gray-200 rounded-xl"
-        >
+        <Card class="flex flex-col w-full shadow-lg border-2 border-gray-200 rounded-xl">
           <CardHeader class="text-center">
-            <CardTitle class="text-3xl font-bold text-[#2c3e50]"
-              >Multi Player</CardTitle
-            >
-            <CardDescription class="text-base text-[#7f8c8d] pt-1"
-              >Play against other players!</CardDescription
-            >
+            <CardTitle class="text-3xl font-bold text-[#2c3e50]">Multi Player</CardTitle>
+            <CardDescription class="text-base text-[#7f8c8d] pt-1">Play against other players!</CardDescription>
           </CardHeader>
           <CardContent class="flex justify-center gap-4 mt-auto pt-6">
+            
             <Button
-              :class="
-                authStore.currentUser ? 'home-btn' : 'login-necessary-btn'
-              "
-              @click="router.push({ name: 'lobby' })"
+              :class="authStore.isAuthenticated ? 'home-btn' : 'login-necessary-btn'"
+              @click="enterLobby"
               size="lg"
               variant="secondary"
             >
-              {{ authStore.currentUser ? "Go to Lobby" : "Login Necessary" }}
+              {{ authStore.isAuthenticated ? "Go to Lobby" : "Login Necessary" }}
             </Button>
+
           </CardContent>
         </Card>
       </div>
     </div>
 
-    <div
-      class="mb-10 flex flex-col lg:flex-row gap-5 w-full max-w-md lg:max-w-4xl"
-    >
-      <Card
-        class="flex flex-1 flex-col w-full shadow-lg border-2 border-gray-200 rounded-xl"
-      >
+    <div class="mb-10 flex flex-col lg:flex-row gap-5 w-full max-w-md lg:max-w-4xl">
+      <Card class="flex flex-1 flex-col w-full shadow-lg border-2 border-gray-200 rounded-xl">
         <CardHeader class="text-center">
-          <CardTitle class="text-3xl font-bold text-[#2c3e50]"
-            >Game History 📜</CardTitle
-          >
-          <CardDescription class="text-base text-[#7f8c8d] pt-1"
-            >Review your multiplayer past games!</CardDescription
-          >
+          <CardTitle class="text-3xl font-bold text-[#2c3e50]">Game History 📜</CardTitle>
+          <CardDescription class="text-base text-[#7f8c8d] pt-1">Review your multiplayer past games!</CardDescription>
         </CardHeader>
         <CardContent class="flex justify-center gap-4 mt-auto pt-6">
           <Button
-            :class="authStore.currentUser ? 'home-btn' : 'login-necessary-btn'"
-            @click="router.push({ name: 'history' })"
+            :class="authStore.isAuthenticated ? 'home-btn' : 'login-necessary-btn'"
+            @click="authStore.isAuthenticated && router.push({ name: 'history' })"
             size="lg"
             variant="secondary"
           >
-            {{ authStore.currentUser ? "History" : "Login Necessary" }}
+            {{ authStore.isAuthenticated ? "History" : "Login Necessary" }}
           </Button>
         </CardContent>
       </Card>
 
-      <Card
-        class="flex flex-1 flex-col w-full shadow-lg border-2 border-gray-200 rounded-xl"
-      >
+      <Card class="flex flex-1 flex-col w-full shadow-lg border-2 border-gray-200 rounded-xl">
         <CardHeader class="text-center">
-          <CardTitle class="text-3xl font-bold text-[#2c3e50]"
-            >Leaderboard 🏆</CardTitle
-          >
-          <CardDescription class="text-base text-[#7f8c8d] pt-1"
-            >Check your ranking or the global leaderboard!</CardDescription
-          >
+          <CardTitle class="text-3xl font-bold text-[#2c3e50]">Leaderboard 🏆</CardTitle>
+          <CardDescription class="text-base text-[#7f8c8d] pt-1">Check your ranking or the global leaderboard!</CardDescription>
         </CardHeader>
         <CardContent class="flex justify-center gap-4 mt-auto pt-6">
           <Button
-            :class="authStore.currentUser ? 'home-btn' : 'login-necessary-btn'"
-            @click="router.push({ name: 'scoreboards' })"
+            :class="authStore.isAuthenticated ? 'home-btn' : 'login-necessary-btn'"
+            @click="authStore.isAuthenticated && router.push({ name: 'scoreboards' })"
             size="lg"
             variant="secondary"
           >
-            {{ authStore.currentUser ? "View Rankings" : "Login Necessary" }}
+            {{ authStore.isAuthenticated ? "View Rankings" : "Login Necessary" }}
           </Button>
         </CardContent>
       </Card>
 
-      <Card
-        class="flex flex-1 flex-col w-full shadow-lg border-2 border-gray-200 rounded-xl"
-      >
+      <Card class="flex flex-1 flex-col w-full shadow-lg border-2 border-gray-200 rounded-xl">
         <CardHeader class="text-center">
-          <CardTitle class="text-3xl font-bold text-[#2c3e50]"
-            >About us</CardTitle
-          >
+          <CardTitle class="text-3xl font-bold text-[#2c3e50]">About us</CardTitle>
         </CardHeader>
         <CardContent class="flex justify-center gap-4 mt-auto pt-6">
           <Button
@@ -177,23 +144,47 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useRouter, useRoute } from "vue-router";
+import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth.js";
 import { useGameStore } from "@/stores/gameStore";
+import { inject } from "vue"; // <--- IMPORTANTE
+
 const router = useRouter();
-const route = useRoute();
 const authStore = useAuthStore();
 const gameStore = useGameStore();
+
+// Injeta o URL base que definiste no main.js
+const serverBaseURL = inject("serverBaseURL");
+
+// --- FUNÇÃO DE AVATAR ---
+const getUserAvatar = () => {
+    const user = authStore.user;
+    const photoName = user?.photo_avatar_filename;
+
+    if (!photoName) {
+        return `https://ui-avatars.com/api/?name=${user?.nickname || 'User'}&background=random&color=fff`;
+    }
+
+    // Se já for um URL completo, usa-o
+    if (photoName.startsWith('http')) return photoName;
+
+    // Constrói o URL usando o serverBaseURL injetado
+    // Resultado esperado: http://localhost:8000/storage/photo_avatars/nome.jpg
+    return `${serverBaseURL}/storage/photo_avatars/${photoName}`;
+};
+
+const handleImageError = (e) => {
+    e.target.src = `https://ui-avatars.com/api/?name=${authStore.user?.nickname || 'User'}&background=random&color=fff`;
+};
+
+// --- RESTO DAS FUNÇÕES ---
 const startGame = (mode) => {
-  // 1. Reinicia qualquer estado de jogo anterior
   gameStore.resetForNewPlay();
-  // 2. Define o modo de jogo (single_game ou match)
-  gameStore.setPlayMode(mode);
-  // 2. Navega para a rota correspondente
-  if (gameStore.playMode === "single_game") {
-    router.push({ name: "quick-game" });
+  gameStore.playMode = mode;
+  if (mode === "single_game") {
+    router.push({ name: "sp-quick-game" });
   } else {
-    router.push({ name: "full-match" });
+    router.push({ name: "sp-full-match" });
   }
 };
 </script>
@@ -232,6 +223,7 @@ const startGame = (mode) => {
   padding: 0.75rem 1.5rem;
   background-color: #9ca3af;
   color: black;
+  cursor: not-allowed;
 }
 
 :deep(.login-necessary-btn:hover) {

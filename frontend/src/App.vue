@@ -1,99 +1,78 @@
 <template>
   <Toaster rich-colors />
-  <nav
-    class="max-w-full p-5 flex flex-row justify-between items-center bg-[#1e8449] shadow-sm"
-  >
-    <div
-      class="align-middle font-bold text-xl text-[#f8f9fa] hover:text-gray-300"
-    >
+  
+  <nav class="max-w-full p-5 flex flex-row justify-between items-center bg-[#1e8449] shadow-sm">
+    <div class="align-middle font-bold text-xl text-[#f8f9fa] hover:text-gray-300">
       <RouterLink to="/"> BISCA APP </RouterLink>
     </div>
 
     <NavigationMenu>
       <NavigationMenuList class="justify-around gap-5">
-        <!-- GAMES -->
         <NavigationMenuItem>
-          <NavigationMenuTrigger class="user-badge-btn"
-            >Games</NavigationMenuTrigger
-          >
+          <NavigationMenuTrigger class="user-badge-btn">Games</NavigationMenuTrigger>
           <NavigationMenuContent>
             <NavigationMenuLink as-child>
-              <RouterLink to="/game/singleplayer/quickgame">
-                Single Player Game - Quick Game
-              </RouterLink>
+              <RouterLink to="/game/singleplayer/quickgame">Single Player - Quick</RouterLink>
             </NavigationMenuLink>
-
             <NavigationMenuLink as-child>
-              <RouterLink to="/games/singleplayer">
-                Single Player Game - Full Match
-              </RouterLink>
+              <RouterLink to="/games/singleplayer">Single Player - Match</RouterLink>
             </NavigationMenuLink>
-
-            <NavigationMenuLink> Multi Player Game </NavigationMenuLink>
+            <NavigationMenuLink>Multi Player Game</NavigationMenuLink>
           </NavigationMenuContent>
         </NavigationMenuItem>
-        <NavigationMenuItem v-if="authStore.currentUser">
+        
+        <NavigationMenuItem v-if="authStore.user">
           <NavigationMenuLink class="user-badge-btn" as-child>
             <RouterLink to="/">
-              {{ authStore.currentUser?.nickname || "My Profile" }}
+              {{ authStore.user.nickname || authStore.user.name || "My Profile" }}
             </RouterLink>
           </NavigationMenuLink>
         </NavigationMenuItem>
 
-        <!-- LOGIN / LOGOUT -->
         <NavigationMenuItem>
           <NavigationMenuLink class="user-badge-btn" as-child>
-            <RouterLink v-if="!authStore.isLoggedIn" to="/login"
-              >Login</RouterLink
-            >
-            <a v-else @click.prevent="logout" class="logout-link">Logout</a>
+            <RouterLink v-if="!authStore.isAuthenticated" to="/login">Login</RouterLink>
+            <a v-else @click.prevent="handleLogout" class="logout-link cursor-pointer">Logout</a>
           </NavigationMenuLink>
         </NavigationMenuItem>
       </NavigationMenuList>
     </NavigationMenu>
   </nav>
-  <div>
-    <main>
-      <RouterView />
-    </main>
-  </div>
+
+  <main>
+    <RouterView />
+  </main>
 </template>
 
 <script setup>
-import { Button } from "@/components/ui/button";
 import { onMounted } from "vue";
 import {
-  NavigationMenu,
-  NavigationMenuContent,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-  NavigationMenuTrigger,
+  NavigationMenu, NavigationMenuContent, NavigationMenuItem,
+  NavigationMenuLink, NavigationMenuList, NavigationMenuTrigger,
 } from "@/components/ui/navigation-menu";
-import { RouterLink, RouterView } from "vue-router";
+import { RouterLink, RouterView, useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth.js";
 import { Toaster } from "@/components/ui/sonner";
-import { toast } from "vue-sonner";
 import { useSocketStore } from "@/stores/socket";
 import "vue-sonner/style.css";
 
 const authStore = useAuthStore();
 const socketStore = useSocketStore();
+const router = useRouter();
 
-const logout = () => {
-  toast.promise(authStore.logout(), {
-    loading: "Calling API",
-    success: () => {
-      return "Logout Sucessfull ";
-    },
-    error: (data) =>
-      `[API] Error calling API - ${data?.response?.data?.message}`,
-  });
+const handleLogout = async () => {
+    await authStore.logout();
+    router.push('/login');
 };
 
 onMounted(() => {
-  socketStore.handleConnection();
-  socketStore.handleGameEvents();
+  // Tenta restaurar a sessão discretamente
+  authStore.restoreUser().then((isLoggedIn) => {
+      if (isLoggedIn) {
+          socketStore.handleConnection();
+          socketStore.handleGameEvents();
+      }
+  });
 });
 </script>
 
@@ -108,13 +87,11 @@ onMounted(() => {
   border: 1px solid rgba(229, 231, 235, 0.5);
   transition: all 0.2s ease-in-out;
 }
-
 :deep(.user-badge-btn:hover) {
   transform: translateY(-4px);
 }
-
 :deep(.logout-link:hover) {
-  background-color: #007bff;
+  background-color: #dc2626;
   color: white;
   transform: scale(1.05);
 }

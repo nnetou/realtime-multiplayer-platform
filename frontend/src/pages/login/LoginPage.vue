@@ -2,7 +2,6 @@
   <div
     class="flex min-h-screen items-center justify-center bg-[#1e8449] px-4 py-12 sm:px-6 lg:px-8"
   >
-    <!-- O div principal foi substituído por um Card -->
     <Card class="w-full max-w-md shadow-lg">
       <CardHeader class="text-center">
         <CardTitle class="text-3xl font-bold tracking-tight text-gray-900">
@@ -13,7 +12,6 @@
         </CardDescription>
       </CardHeader>
 
-      <!-- O formulário agora está dentro do CardContent -->
       <CardContent>
         <form class="space-y-6" @submit.prevent="handleSubmit">
           <div class="space-y-4">
@@ -93,20 +91,27 @@ const formData = ref({
 
 const handleSubmit = async () => {
   console.log("Submitting form with data: ", formData.value);
+  
   toast.promise(authStore.login(formData.value), {
-    loading: "Calling API",
+    loading: "Calling API...",
     success: (data) => {
-      return `Login Sucessfull - ${data?.name}`;
+      // SÓ REDIRECIONA AQUI, SE TIVER SUCESSO
+      router.push("/");
+      return `Login Successful`;
     },
-    error: (data) => {
-      if (data.response.status === 401) {
-        console.log("Estou aqui");
-        return `[API] Error loggin in - Incorrect username or password`;
+    error: (error) => {
+      // CORREÇÃO DO ERRO DE STATUS
+      if (error.response && error.response.status === 401) {
+        return `[API] Incorrect username or password`;
       }
-      return `[API] Error loggin in - ${data?.response?.data?.message}`;
+      if (error.response && error.response.data) {
+        return `[API] Error: ${error.response.data.message}`;
+      }
+      return "[API] Connection error or Server offline";
     },
   });
-
-  router.push("/");
+  
+  // REMOVIDO: router.push("/"); daqui de baixo.
+  // Se estiver aqui, ele redireciona mesmo que a password esteja errada.
 };
 </script>

@@ -1,109 +1,108 @@
 <template>
   <div class="container mx-auto p-4">
-    <div class="max-w-4xl mx-auto space-y-4">
-      <Card>
+    <div class="max-w-4xl mx-auto space-y-6">
+      <Card class="bg-slate-50 border-dashed border-2">
         <CardHeader>
-          <CardTitle class="text-lg">Create New Game</CardTitle>
-        </CardHeader>
-        <CardContent class="space-y-4">
-          <div>
-            <label class="text-sm font-medium mb-2 block"
-              >Choose Difficulty</label
+          <CardTitle class="text-xl flex justify-between items-center">
+            Lobby Multijogador
+            <Button
+              @click="createNewGame"
+              class="bg-green-600 hover:bg-green-700"
             >
-            <div class="grid grid-cols-3 gap-2">
-              <Button
-                v-for="level in gameStore.difficulties"
-                :key="level.value"
-                size="sm"
-                @click="selectedDifficulty = level.value"
-                :variant="
-                  selectedDifficulty === level.value ? 'default' : 'outline'
-                "
-                class="flex flex-col py-3 h-16"
+              Criar Nova Sala
+            </Button>
+          </CardTitle>
+        </CardHeader>
+      </Card>
+
+      <Card
+        v-if="gameStore.myGames && gameStore.myGames.length > 0"
+        class="border-blue-500 border-2"
+      >
+        <CardHeader>
+          <CardTitle class="text-lg text-blue-700">As Tuas Salas</CardTitle>
+        </CardHeader>
+        <CardContent class="space-y-3">
+          <div
+            v-for="game in gameStore.myGames"
+            :key="game.id"
+            class="bg-blue-50 p-4 rounded-lg flex items-center justify-between"
+          >
+            <div>
+              <p v-if="!game.player2" class="animate-pulse">
+                A aguardar oponente...
+              </p>
+              <p v-else class="font-bold text-green-600">
+                Oponente pronto: {{ game.player2Name }}
+              </p>
+            </div>
+            <div class="space-x-2">
+              <Button @click="cancelGame(game)" variant="destructive" size="sm"
+                >Cancelar</Button
               >
-                <span class="font-semibold">{{ level.label }}</span>
-                <span class="text-xs opacity-70">{{ level.description }}</span>
-              </Button>
+              <Button
+                v-if="game.player2"
+                @click="startGame(game)"
+                variant="default"
+                size="sm"
+                class="bg-blue-600"
+                >Começar Jogo</Button
+              >
             </div>
           </div>
-
-          <Button @click="createNewGame" class="w-full">Create Game</Button>
         </CardContent>
       </Card>
 
-      <Card class="border-2 border-blue-500">
+      <Card>
         <CardHeader>
-          <CardTitle class="text-lg">Waiting for Opponent...</CardTitle>
-        </CardHeader>
-        <CardContent class="space-y-4">
-          <div
-            class="bg-blue-50 p-4 rounded-lg flex items-center justify-between"
-            v-for="game of gameStore.myGames"
-            :key="game"
-          >
-            <div class="flex-1">
-              <div class="flex items-center gap-2">
-                <div class="animate-pulse text-3xl">⏳</div>
-                <Badge variant="outline"
-                  >Difficulty: {{ game.difficulty }}</Badge
-                >
-              </div>
-            </div>
-
-            <Button @click="cancelGame(game)" variant="outline" size="sm"
-              >Cancel Game</Button
-            >
+          <CardTitle class="text-lg flex justify-between items-center">
+            Salas Disponíveis ({{ gameStore.availableGames?.length || 0 }})
             <Button
-              v-if="game.player2"
-              @click="startGame(game)"
+              @click="socketStore.emitGetGames"
               variant="outline"
               size="sm"
-              >Start</Button
-            >
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle class="text-lg"
-            >Available Games ({{ gameStore.availableGames.length }})
-            <Button @click="refreshGamesList" variant="outline" size="sm"
-              >Refresh</Button
+              >🔄 Atualizar</Button
             >
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div
-            v-if="gameStore.availableGames.length === 0"
-            class="text-center py-8 text-gray-500"
+            v-if="
+              !gameStore.availableGames || gameStore.availableGames.length === 0
+            "
+            class="text-center py-10 text-gray-400"
           >
-            <div class="text-4xl mb-2">🎮</div>
-            <p>No games available</p>
-            <p class="text-sm mt-1">Create a new game to get started!</p>
+            <p class="text-5xl mb-4">🃏</p>
+            <p>Nenhuma sala aberta de momento.</p>
           </div>
 
-          <div v-else class="space-y-4">
+          <div v-else class="grid gap-4">
             <div
-              v-for="game of gameStore.availableGames"
-              :key="game"
-              class="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+              v-for="game in gameStore.availableGames"
+              :key="game.id"
+              class="flex items-center justify-between p-4 border rounded-xl hover:bg-slate-50 transition-all"
             >
-              <div class="flex-1">
-                <div class="flex items-center gap-2">
-                  <span class="font-medium">{{ game.creator }}'s Game</span>
-                  <Badge variant="outline"
-                    >Difficulty: {{ game.difficulty }}</Badge
+            
+            <div>
+                <p class="font-bold text-lg">
+                  Sala de {{ game.player1Name  || "Anónimo" }}
+                </p>
+
+                <div class="flex gap-2 mt-1">
+                  <Badge variant="outline" class="text-blue-600 border-blue-600"
+                    >Disponível</Badge
+                  >
+                  <span class="text-xs text-gray-400 flex items-center"
+                    >#{{ game.id.slice(0, 4) }}</span
                   >
                 </div>
               </div>
-              <Button @click="joinGame(game)" size="sm"> Join Game </Button>
+
               <Button
-                v-if="game.player2 == authStore.currentUserID"
-                @click="startGame(game)"
-                size="sm"
+                @click="joinGame(game)"
+                class="bg-blue-600 hover:bg-blue-700"
               >
-                Start
+                Entrar
               </Button>
             </div>
           </div>
@@ -114,7 +113,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from "vue";
+import { onMounted, inject } from "vue";
 import { useGameStore } from "@/stores/gameStore";
 import { useAuthStore } from "@/stores/auth";
 import { useSocketStore } from "@/stores/socket";
@@ -122,24 +121,30 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "vue-router";
-const router = useRouter();
+import { User } from "lucide-vue-next";
 
+const router = useRouter();
 const gameStore = useGameStore();
 const authStore = useAuthStore();
 const socketStore = useSocketStore();
-
-const selectedDifficulty = ref("medium");
+const socket = inject("socket");
 
 const createNewGame = () => {
-  gameStore.createGame(selectedDifficulty.value);
+  gameStore.createGame(socket);
+};
+
+const cancelGame = (game) => {
+  gameStore.cancelGame(socket, game);
 };
 
 const joinGame = (game) => {
+  // Chamada à função agora definida no socket.js
   socketStore.emitJoinGame(game);
 };
+
 const startGame = (game) => {
   gameStore.multiplayerGame = game;
-  router.push({ name: "multiplayer" });
+  router.push({ name: "mp-full-match" });
 };
 
 onMounted(() => {
