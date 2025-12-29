@@ -177,14 +177,20 @@ const handleImageError = (e) => {
     e.target.src = `https://ui-avatars.com/api/?name=${authStore.user?.nickname || 'User'}&background=random&color=fff`;
 };
 
-// --- RESTO DAS FUNÇÕES ---
+const enterLobby = () => {
+  if (authStore.isAuthenticated) {
+    router.push({ name: 'lobby' });
+  } else {
+    router.push({ name: 'login' });
+  }
+};
 const startGame = (mode) => {
   gameStore.resetForNewPlay();
   gameStore.playMode = mode;
   if (mode === "single_game") {
-    router.push({ name: "sp-quick-game" });
+    router.push({ name: "quick-game" });
   } else {
-    router.push({ name: "sp-full-match" });
+    router.push({ name: "full-match" });
   }
 };
 </script>

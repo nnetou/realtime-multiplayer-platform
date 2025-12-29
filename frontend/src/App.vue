@@ -8,23 +8,40 @@
 
     <NavigationMenu>
       <NavigationMenuList class="justify-around gap-5">
+        
         <NavigationMenuItem>
           <NavigationMenuTrigger class="user-badge-btn">Games</NavigationMenuTrigger>
           <NavigationMenuContent>
             <NavigationMenuLink as-child>
-              <RouterLink to="/game/singleplayer/quickgame">Single Player - Quick</RouterLink>
+              <RouterLink :to="{ name: 'quick-game' }" class="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground">
+                Single Player - Quick
+              </RouterLink>
             </NavigationMenuLink>
             <NavigationMenuLink as-child>
-              <RouterLink to="/games/singleplayer">Single Player - Match</RouterLink>
+              <RouterLink :to="{ name: 'full-match' }" class="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground">
+                Single Player - Match
+              </RouterLink>
             </NavigationMenuLink>
-            <NavigationMenuLink>Multi Player Game</NavigationMenuLink>
+            <NavigationMenuLink as-child>
+              <RouterLink :to="{ name: 'lobby' }" class="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground">
+                Multi Player Lobby
+              </RouterLink>
+            </NavigationMenuLink>
           </NavigationMenuContent>
         </NavigationMenuItem>
         
         <NavigationMenuItem v-if="authStore.user">
-          <NavigationMenuLink class="user-badge-btn" as-child>
-            <RouterLink to="/">
-              {{ authStore.user.nickname || authStore.user.name || "My Profile" }}
+          <NavigationMenuLink class="user-badge-btn flex items-center gap-2 pr-4 cursor-pointer" as-child>
+            <RouterLink :to="{ name: 'profile' }">
+              <img
+                :src="getUserAvatar()"
+                alt="Avatar"
+                class="h-6 w-6 rounded-full border border-gray-300 bg-white object-cover"
+                @error="handleImageError"
+              />
+              <span class="hidden md:inline">
+                {{ authStore.user.nickname || authStore.user.name || "My Profile" }}
+              </span>
             </RouterLink>
           </NavigationMenuLink>
         </NavigationMenuItem>
@@ -45,7 +62,7 @@
 </template>
 
 <script setup>
-import { onMounted } from "vue";
+import { onMounted, inject } from "vue";
 import {
   NavigationMenu, NavigationMenuContent, NavigationMenuItem,
   NavigationMenuLink, NavigationMenuList, NavigationMenuTrigger,
@@ -59,6 +76,21 @@ import "vue-sonner/style.css";
 const authStore = useAuthStore();
 const socketStore = useSocketStore();
 const router = useRouter();
+const serverBaseURL = inject("serverBaseURL"); 
+
+// Lógica do Avatar (Copiada do HomePage para garantir consistência)
+const getUserAvatar = () => {
+    const user = authStore.user;
+    if (!user?.photo_avatar_filename) {
+        return `https://ui-avatars.com/api/?name=${user?.nickname || 'User'}&background=random&color=fff`;
+    }
+    if (user.photo_avatar_filename.startsWith('http')) return user.photo_avatar_filename;
+    return `${serverBaseURL}/storage/photo_avatars/${user.photo_avatar_filename}`;
+};
+
+const handleImageError = (e) => {
+    e.target.src = `https://ui-avatars.com/api/?name=${authStore.user?.nickname || 'User'}&background=random&color=fff`;
+};
 
 const handleLogout = async () => {
     await authStore.logout();
@@ -66,7 +98,6 @@ const handleLogout = async () => {
 };
 
 onMounted(() => {
-  // Tenta restaurar a sessão discretamente
   authStore.restoreUser().then((isLoggedIn) => {
       if (isLoggedIn) {
           socketStore.handleConnection();
@@ -86,6 +117,7 @@ onMounted(() => {
   border-radius: 0.75rem;
   border: 1px solid rgba(229, 231, 235, 0.5);
   transition: all 0.2s ease-in-out;
+  padding: 0.5rem 1rem; /* Ajuste para o avatar caber bem */
 }
 :deep(.user-badge-btn:hover) {
   transform: translateY(-4px);
