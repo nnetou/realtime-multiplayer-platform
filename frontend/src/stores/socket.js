@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
-import { inject, ref } from 'vue'
+import { inject, ref, watch } from 'vue'
 import { useAuthStore } from './auth'
 import { useGameStore } from './gameStore'
+import { toast } from 'vue-sonner'
 import { useRouter } from 'vue-router'
 
 export const useSocketStore = defineStore('socket', () => {
@@ -11,70 +12,146 @@ export const useSocketStore = defineStore('socket', () => {
     const router = useRouter()
     const joined = ref(false)
 
-    const handleConnection = () => {
-        socket.on('connect', () => {
-            console.log(`[Socket] Conectado: ${socket.id}`)
-            if (authStore.isLoggedIn && !joined.value) {
-                socket.emit('join', authStore.currentUser)
-                joined.value = true
+    const emitJoin = (user) => {
+        if (joined.value) return
+        console.log(`[Socket] Joining Server`)
+        socket.emit('join', user)
+        joined.value = true
+    }
+    watch(
+        () => authStore.currentUser,
+        (newUser) => {
+            // Se um novo utilizador for definido (após login ou refresh)
+            // E o socket estiver conectado, emite o 'join'
+            if (newUser && socket.connected) {
+                emitJoin(newUser);
             }
-        })
+        },
+        { immediate: true } // 'immediate' tenta executar na primeira vez
+    )
+
+    const emitSyncInitialState = (gameState) => {
+        console.log('[Socket] Emitting game:sync_initial_state');
+        socket.emit('game:sync_initial_state', gameState);
+    };
+
+    const emitGetGames = () => {
+        socket.emit('get-games')
     }
 
-    const emitGetGames = () => socket.emit('get-games')
-    const emitJoinGame = (game) => socket.emit('join-game', game)
+    const emitLeave = () => {
+        socket.emit('leave')
+        console.log(`[Socket] Leaving Server`)
+        joined.value = false
+    }
+    const emitPlayMove = (data) => {
+        // data = { gameId, card }
+        console.log(`[Socket] Emitting game:move for game ${data.gameId}`);
+        socket.emit('game:move', data);
+    };
 
-    const emitPlayCard = (gameId, card) => {
-        const cleanCard = JSON.parse(JSON.stringify(card));
-        socket.emit('play-card', { gameId: String(gameId), card: cleanCard });
+    const emitCreateGame = (playMode, biscaType) => {
+        console.log('[Socket] Emitting create-game', playMode, biscaType)
+        socket.emit('create-game', playMode, biscaType)
+    }
+
+    const emitJoinGame = (gameId) => {
+        console.log(`[Socket] Emitting join-game for game ${gameId}`)
+        socket.emit('join-game', { gameId })
+    }
+
+    const emitCancelGame = (gameId) => {
+        console.log(`[Socket] Emitting game:cancel for game ${gameId}`);
+        socket.emit('game:cancel', { gameId });
+    };
+
+    const emitDeclareEnd = (gameId) => {
+        console.log(`[Socket] Emitting game:declare_end for game ${gameId}`);
+        socket.emit('game:declare_end', { gameId });
+    };
+
+    const handleConnection = () => {
+        socket.on('connect', () => {
+            console.log(`[Socket] Connected -- ${socket.id}`)
+            if (authStore.isLoggedIn && !joined.value) {
+                emitJoin(authStore.currentUser)
+            }
+        })
+        socket.on('disconnect', () => {
+            joined.value = false
+            console.log(`[Socket] Disconnected -- ${socket.id}`)
+        })
     }
 
     const handleGameEvents = () => {
-        socket.on('games', (games) => gameStore.setGames(games))
-
-        socket.on('match-ready', (payload) => {
-            gameStore.setupMultiplayerMatch({
-                hand: payload.myHand,
-                trunfo: payload.trunfo,
-                deckCount: payload.deckCount,
-                myTurn: payload.turn,
-                gameId: payload.id,
-                socket: socket
-            });
-            router.push({ name: "mp-full-match" });
+        socket.on('games', (games) => {
+            console.log(`[Socket] server emited games | game count ${games.length}`)
+            gameStore.setGames(games) // Import and instantiate the game store
         })
 
-        socket.on('opponent-played', (card) => {
-            gameStore.onOpponentMove(card);
+        socket.on('game:initialize', (gameData) => {
+            console.log('[Socket] Received game:initialize. Generating and sharing state...');
+            // Delega a tarefa de gerar e partilhar para a gameStore
+            gameStore.generateAndShareInitialState(gameData);
         })
 
-        socket.on('deal-card', (data) => {
-            gameStore.addCardToHand(data.card, data.deckCount);
+        socket.on('game:started', (serverState) => {
+            console.log('[Socket] Received game:started')
+            gameStore.updateStateFromServer(serverState)
+            if (serverState.playMode === 'single_game')
+                router.push({ name: 'multiplayer-quick-game' })
+            else
+                router.push({ name: 'multiplayer-full-match' })
         })
 
-        socket.on('opponent-drew', (data) => {
-            gameStore.opponentDrewCard(data.deckCount);
-        })
+        socket.on('game:state_update', (serverState) => {
+            gameStore.updateStateFromServer(serverState);
+        });
+        socket.on('game:opponent_move', (data) => {
+            console.log('[Socket] Received opponent move:', data.card);
+            // Diz à gameStore para processar a jogada do oponente
+            gameStore.handleOpponentMove(data.card);
+        });
 
-        socket.on('deck-empty', () => {
-            gameStore.gameState.trunfo = null;
-            gameStore.gameState.deck = [];
-        })
+        socket.on('game:error', (errorMessage) => {
+            toast.error(errorMessage);
+            // Se o erro foi numa jogada, precisamos de libertar o bloqueio
+            gameStore.gameState.isProcessingMove = false;
+        });
 
-        socket.on('trick-result', (data) => {
-            gameStore.handleServerTrickResult(data, socket.id);
-        })
+        socket.on('game:ended', (data) => {
+            console.log('[Socket] Received game:ended from server', data);
+            toast.success(`Game Over! Winner: ${data.winner.nickname}`);
+            // Aqui você pode atualizar a gameStore com o resultado final,
+            // ou simplesmente redirecionar para o lobby.
+            gameStore.updateStateFromServer(data.finalState); // Supondo que o servidor envia o estado final
 
-        socket.on('game-ended', (result) => {
-            gameStore.handleGameEnd(result, socket.id);
-        })
+            gameStore.gameState.gameFinished = true;
+            gameStore.gameState.winner = data.winner; // Guarda o vencedor
+
+            // 3. CHAMA A AÇÃO PARA GUARDAR NA BASE DE DADOS
+            gameStore.saveGame();
+        });
+
+        //Ver se é necessário e como funciona
+        //     socket.on('game-change', (game) => {
+        //     gameStore.setMultiplayerGame(game)
+        // })
+
+        // ... outros eventos como 'game:finished', 'player:joined', etc.
     }
 
     return {
-        handleConnection,
-        handleGameEvents,
-        emitGetGames,
+        emitJoin,
+        emitLeave,
+        emitCreateGame,
         emitJoinGame,
-        emitPlayCard
+        handleConnection,
+        emitGetGames,
+        handleGameEvents,
+        emitCancelGame,
+        emitDeclareEnd,
+        emitPlayMove,
+        emitSyncInitialState,
     }
 })

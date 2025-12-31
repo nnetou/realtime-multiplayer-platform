@@ -82,10 +82,9 @@
               :key="game.id"
               class="flex items-center justify-between p-4 border rounded-xl hover:bg-slate-50 transition-all"
             >
-            
-            <div>
+              <div>
                 <p class="font-bold text-lg">
-                  Sala de {{ game.player1Name  || "Anónimo" }}
+                  Sala de {{ game.player1Name || "Anónimo" }}
                 </p>
 
                 <div class="flex gap-2 mt-1">

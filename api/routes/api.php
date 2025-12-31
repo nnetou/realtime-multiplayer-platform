@@ -7,6 +7,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\MatchController;
 use App\Http\Controllers\CoinController;
 use App\Http\Controllers\ShopController;
+use App\Http\Controllers\UserStatisticsController;
 
 // 1. LOGIN
 Route::post('/login', [AuthController::class, 'login'])->name('login');
@@ -40,6 +41,7 @@ Route::middleware('auth:sanctum')->group(function () {
         return $request->user();
     });
     Route::put('/users/me', [AuthController::class, 'updateProfile']);
+    Route::get('/me/statistics', [UserStatisticsController::class, 'index']);
     Route::post('/logout', [AuthController::class, 'logout']);
 
     Route::post('/matches', [MatchController::class, 'store']);
@@ -54,6 +56,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // Ações de compra continuam protegidas
     Route::post('/shop/buy', [ShopController::class, 'buy']);
     Route::post('/shop/equip', [ShopController::class, 'equip']);
+
+    // --- ROTA PROTEGIDA PARA ADMINS ---
+    // O pedido passará primeiro pelo 'auth:sanctum' e depois pelo nosso middleware 'admin'
+    Route::get('/admin/history', [MatchController::class, 'allMatchesHistory'])
+        ->middleware('admin');
 });
 
-// Para confirmar que a API está funcionando

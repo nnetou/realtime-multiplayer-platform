@@ -1,6 +1,5 @@
 <template>
   <div class="min-h-screen bg-[#1e8449] p-5 flex flex-col items-center">
-    
     <div v-if="authStore.user" class="home-page-card flex">
       <div class="flex items-center gap-3">
         <img
@@ -18,13 +17,17 @@
       </div>
 
       <div class="flex items-center gap-3">
-        <Button @click="router.push({ name: 'profile' })" size="sm" variant="outline">
+        <!-- <Button
+          @click="router.push({ name: 'profile' })"
+          size="sm"
+          variant="outline"
+        >
           Profile
-        </Button>
+        </Button> -->
         <div class="flex items-baseline gap-3">
           <span class="text-xl text-gray-600">Coins</span>
           <p class="font-bold text-xl text-[#2c3e50]">
-            {{ authStore.user?.coins_balance || 0 }}
+            {{ authStore.user?.coins_balance || 0 }} 🪙
           </p>
         </div>
       </div>
@@ -35,10 +38,16 @@
         Play a Game
       </h2>
       <div class="flex flex-col lg:flex-row gap-5 w-full">
-        <Card class="flex flex-col w-full shadow-lg border-2 border-gray-200 rounded-xl">
+        <Card
+          class="flex flex-col w-full shadow-lg border-2 border-gray-200 rounded-xl"
+        >
           <CardHeader class="text-center">
-            <CardTitle class="text-3xl font-bold text-[#2c3e50]">Single Player</CardTitle>
-            <CardDescription class="text-base text-[#7f8c8d] pt-1">Play alone against a bot!</CardDescription>
+            <CardTitle class="text-3xl font-bold text-[#2c3e50]"
+              >Single Player</CardTitle
+            >
+            <CardDescription class="text-base text-[#7f8c8d] pt-1"
+              >Play alone against a bot!</CardDescription
+            >
           </CardHeader>
           <CardContent class="flex justify-center gap-4 mt-auto pt-6">
             <Button
@@ -60,37 +69,63 @@
           </CardContent>
         </Card>
 
-        <Card class="flex flex-col w-full shadow-lg border-2 border-gray-200 rounded-xl">
+        <Card
+          class="flex flex-col w-full shadow-lg border-2 border-gray-200 rounded-xl"
+        >
           <CardHeader class="text-center">
-            <CardTitle class="text-3xl font-bold text-[#2c3e50]">Multi Player</CardTitle>
-            <CardDescription class="text-base text-[#7f8c8d] pt-1">Play against other players!</CardDescription>
+            <CardTitle class="text-3xl font-bold text-[#2c3e50]"
+              >Multi Player</CardTitle
+            >
+            <CardDescription class="text-base text-[#7f8c8d] pt-1"
+              >Play against other players!</CardDescription
+            >
           </CardHeader>
           <CardContent class="flex justify-center gap-4 mt-auto pt-6">
-            
             <Button
-              :class="authStore.isAuthenticated ? 'home-btn' : 'login-necessary-btn'"
+              :class="
+                authStore.isAuthenticated ? 'home-btn' : 'login-necessary-btn'
+              "
               @click="enterLobby"
               size="lg"
               variant="secondary"
             >
-              {{ authStore.isAuthenticated ? "Go to Lobby" : "Login Necessary" }}
+              {{
+                authStore.isAuthenticated ? "Go to Lobby" : "Login Necessary"
+              }}
             </Button>
-
           </CardContent>
         </Card>
       </div>
     </div>
 
-    <div class="mb-10 flex flex-col lg:flex-row gap-5 w-full max-w-md lg:max-w-4xl">
-      <Card class="flex flex-1 flex-col w-full shadow-lg border-2 border-gray-200 rounded-xl">
+    <div
+      class="mb-10 flex flex-col lg:flex-row gap-5 w-full max-w-md lg:max-w-4xl"
+    >
+      <Card
+        class="flex flex-1 flex-col w-full shadow-lg border-2 border-gray-200 rounded-xl"
+      >
         <CardHeader class="text-center">
-          <CardTitle class="text-3xl font-bold text-[#2c3e50]">Game History 📜</CardTitle>
-          <CardDescription class="text-base text-[#7f8c8d] pt-1">Review your multiplayer past games!</CardDescription>
+          <CardTitle class="text-3xl font-bold text-[#2c3e50]"
+            >Game History 📜</CardTitle
+          >
+          <CardDescription class="text-base text-[#7f8c8d] pt-1">
+            {{
+              authStore.user.type === "P"
+                ? "Review your multiplayer past games!"
+                : "Review all of the games!"
+            }}</CardDescription
+          >
         </CardHeader>
         <CardContent class="flex justify-center gap-4 mt-auto pt-6">
           <Button
-            :class="authStore.isAuthenticated ? 'home-btn' : 'login-necessary-btn'"
-            @click="authStore.isAuthenticated && router.push({ name: 'history' })"
+            :class="
+              authStore.isAuthenticated ? 'home-btn' : 'login-necessary-btn'
+            "
+            @click="
+              authStore.isAuthenticated
+                ? goToHistory()
+                : router.push({ name: 'login' })
+            "
             size="lg"
             variant="secondary"
           >
@@ -99,26 +134,42 @@
         </CardContent>
       </Card>
 
-      <Card class="flex flex-1 flex-col w-full shadow-lg border-2 border-gray-200 rounded-xl">
+      <Card
+        class="flex flex-1 flex-col w-full shadow-lg border-2 border-gray-200 rounded-xl"
+      >
         <CardHeader class="text-center">
-          <CardTitle class="text-3xl font-bold text-[#2c3e50]">Leaderboard 🏆</CardTitle>
-          <CardDescription class="text-base text-[#7f8c8d] pt-1">Check your ranking or the global leaderboard!</CardDescription>
+          <CardTitle class="text-3xl font-bold text-[#2c3e50]"
+            >Leaderboard 🏆</CardTitle
+          >
+          <CardDescription class="text-base text-[#7f8c8d] pt-1"
+            >Check your ranking or the global leaderboard!</CardDescription
+          >
         </CardHeader>
         <CardContent class="flex justify-center gap-4 mt-auto pt-6">
           <Button
-            :class="authStore.isAuthenticated ? 'home-btn' : 'login-necessary-btn'"
-            @click="authStore.isAuthenticated && router.push({ name: 'scoreboards' })"
+            :class="
+              authStore.isAuthenticated ? 'home-btn' : 'login-necessary-btn'
+            "
+            @click="
+              authStore.isAuthenticated && router.push({ name: 'scoreboards' })
+            "
             size="lg"
             variant="secondary"
           >
-            {{ authStore.isAuthenticated ? "View Rankings" : "Login Necessary" }}
+            {{
+              authStore.isAuthenticated ? "View Rankings" : "Login Necessary"
+            }}
           </Button>
         </CardContent>
       </Card>
 
-      <Card class="flex flex-1 flex-col w-full shadow-lg border-2 border-gray-200 rounded-xl">
+      <Card
+        class="flex flex-1 flex-col w-full shadow-lg border-2 border-gray-200 rounded-xl"
+      >
         <CardHeader class="text-center">
-          <CardTitle class="text-3xl font-bold text-[#2c3e50]">About us</CardTitle>
+          <CardTitle class="text-3xl font-bold text-[#2c3e50]"
+            >About us</CardTitle
+          >
         </CardHeader>
         <CardContent class="flex justify-center gap-4 mt-auto pt-6">
           <Button
@@ -158,30 +209,42 @@ const serverBaseURL = inject("serverBaseURL");
 
 // --- FUNÇÃO DE AVATAR ---
 const getUserAvatar = () => {
-    const user = authStore.user;
-    const photoName = user?.photo_avatar_filename;
+  const user = authStore.user;
+  const photoName = user?.photo_avatar_filename;
 
-    if (!photoName) {
-        return `https://ui-avatars.com/api/?name=${user?.nickname || 'User'}&background=random&color=fff`;
-    }
+  if (!photoName) {
+    return `https://ui-avatars.com/api/?name=${
+      user?.nickname || "User"
+    }&background=random&color=fff`;
+  }
 
-    // Se já for um URL completo, usa-o
-    if (photoName.startsWith('http')) return photoName;
+  // Se já for um URL completo, usa-o
+  if (photoName.startsWith("http")) return photoName;
 
-    // Constrói o URL usando o serverBaseURL injetado
-    // Resultado esperado: http://localhost:8000/storage/photo_avatars/nome.jpg
-    return `${serverBaseURL}/storage/photo_avatars/${photoName}`;
+  // Constrói o URL usando o serverBaseURL injetado
+  // Resultado esperado: http://localhost:8000/storage/photos_avatars/nome.jpg
+  return `${serverBaseURL}/storage/photos_avatars/${photoName}`;
 };
 
 const handleImageError = (e) => {
-    e.target.src = `https://ui-avatars.com/api/?name=${authStore.user?.nickname || 'User'}&background=random&color=fff`;
+  e.target.src = `https://ui-avatars.com/api/?name=${
+    authStore.user?.nickname || "User"
+  }&background=random&color=fff`;
+};
+
+const goToHistory = () => {
+  if (authStore.user.type === "P") {
+    router.push({ name: "history" });
+  } else {
+    router.push({ name: "admin-history" });
+  }
 };
 
 const enterLobby = () => {
   if (authStore.isAuthenticated) {
-    router.push({ name: 'lobby' });
+    router.push({ name: "lobby" });
   } else {
-    router.push({ name: 'login' });
+    router.push({ name: "login" });
   }
 };
 const startGame = (mode) => {
