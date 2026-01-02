@@ -4,6 +4,26 @@ import { useAuthStore } from './auth';
 
 const engine = new BiscaEngine();
 
+const reviveCard = (plainCard) => {
+  if (!plainCard || plainCard instanceof Card) {
+    return plainCard; // Já é uma instância ou é nulo
+  }
+
+  const suitValue = plainCard.suit.name || plainCard.suit;
+  const rankObject = plainCard.rank;
+
+  // Encontra o objeto Suit e Rank correspondente com base nos dados do objeto simples
+  const suit = Object.values(Suit).find(s => s === suitValue);
+  const rank = Object.values(Rank).find(r => r.name === rankObject.name);
+
+  console.log("Reviving card:", plainCard, "to Suit: ", suit, ", Rank: ", rank);
+  if (suit && rank) {
+    console.log("Successfully revived card:", suit, rank);
+    return new Card(suit, rank);
+  }
+  return plainCard; // Retorna o original se algo falhar
+};
+
 export const useGameStore = defineStore('game', {
   state: () => ({
     socket: null,
@@ -22,7 +42,8 @@ export const useGameStore = defineStore('game', {
       botScore: 0,
       playerTurn: false,
       gameFinished: false,
-      isProcessingMove: false
+      isProcessingMove: false,
+      playMode: 'match', // 'match' ou 'single_game'
     },
     
     playMode: 'match',
@@ -33,6 +54,19 @@ export const useGameStore = defineStore('game', {
     moveError: null,
     matchType: '3'
   }),
+
+  getters: {
+    getMyGames: (state) => {
+      const authStore = useAuthStore();
+      if (!authStore.currentUser) return [];
+      return state.games.filter(g => g.player1.id === authStore.currentUser.id && g.status === 'pending');
+    },
+    getAvailableGames: (state) => {
+      const authStore = useAuthStore();
+      if (!authStore.currentUser) return state.games.filter(g => g.status === 'pending');
+      return state.games.filter(g => g.player1.id !== authStore.currentUser.id && g.status === 'pending');
+    }
+  },
 
   actions: {
     bindSocket(s) { this.socket = s; },

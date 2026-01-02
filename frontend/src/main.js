@@ -6,6 +6,7 @@ import App from './App.vue'
 import router from './router'
 
 import { useAuthStore } from './stores/auth.js'
+import { useSocketStore } from './stores/socket.js'
 
 const apiDomain = import.meta.env.VITE_API_DOMAIN
 const wsConnection = import.meta.env.VITE_WS_CONNECTION

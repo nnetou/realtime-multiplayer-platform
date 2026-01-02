@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { inject, ref } from 'vue'
+import { inject, ref, watch } from 'vue'
 import { useAuthStore } from './auth'
 import { useGameStore } from './gameStore'
 import { useRouter } from 'vue-router'
@@ -10,7 +10,6 @@ export const useSocketStore = defineStore('socket', () => {
     const gameStore = useGameStore()
     const router = useRouter()
     const joined = ref(false)
-
     const handleConnection = () => {
         socket.on('connect', () => {
             console.log(`[Socket] Conectado: ${socket.id}`)
@@ -68,6 +67,57 @@ export const useSocketStore = defineStore('socket', () => {
         socket.on('game-ended', (result) => {
             gameStore.handleGameEnd(result, socket.id);
         })
+
+        socket.on('game:initialize', (gameData) => {
+            console.log('[Socket] Received game:initialize. Generating and sharing state...');
+            // Delega a tarefa de gerar e partilhar para a gameStore
+            gameStore.generateAndShareInitialState(gameData);
+        })
+
+        socket.on('game:started', (serverState) => {
+            console.log('[Socket] Received game:started')
+            gameStore.updateStateFromServer(serverState)
+            if (serverState.playMode === 'single_game')
+                router.push({ name: 'multiplayer-quick-game' })
+            else
+                router.push({ name: 'multiplayer-full-match' })
+        })
+
+        socket.on('game:state_update', (serverState) => {
+            gameStore.updateStateFromServer(serverState);
+        });
+        socket.on('game:opponent_move', (data) => {
+            console.log('[Socket] Received opponent move:', data.card);
+            // Diz à gameStore para processar a jogada do oponente
+            gameStore.handleOpponentMove(data.card);
+        });
+
+        socket.on('game:error', (errorMessage) => {
+            toast.error(errorMessage);
+            // Se o erro foi numa jogada, precisamos de libertar o bloqueio
+            gameStore.gameState.isProcessingMove = false;
+        });
+
+        socket.on('game:ended', (data) => {
+            console.log('[Socket] Received game:ended from server', data);
+            toast.success(`Game Over! Winner: ${data.winner.nickname}`);
+            // Aqui você pode atualizar a gameStore com o resultado final,
+            // ou simplesmente redirecionar para o lobby.
+            gameStore.updateStateFromServer(data.finalState); // Supondo que o servidor envia o estado final
+
+            gameStore.gameState.gameFinished = true;
+            gameStore.gameState.winner = data.winner; // Guarda o vencedor
+
+            // 3. CHAMA A AÇÃO PARA GUARDAR NA BASE DE DADOS
+            gameStore.saveGame();
+        });
+
+        //Ver se é necessário e como funciona
+        //     socket.on('game-change', (game) => {
+        //     gameStore.setMultiplayerGame(game)
+        // })
+
+        // ... outros eventos como 'game:finished', 'player:joined', etc.
     }
 
     return {

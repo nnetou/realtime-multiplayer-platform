@@ -115,8 +115,6 @@
 <script setup>
 import { onMounted, inject } from "vue";
 import { useGameStore } from "@/stores/gameStore";
-import { useAuthStore } from "@/stores/auth";
-import { useSocketStore } from "@/stores/socket";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -148,6 +146,22 @@ const startGame = (game) => {
 };
 
 onMounted(() => {
-  socketStore.emitGetGames();
+  // Ao entrar na página, pede a lista de jogos
+  refreshGamesList();
 });
 </script>
+
+<style scoped>
+/* Estilos para os botões, para manter a consistência com a HomePage */
+:deep(.home-btn) {
+  font-size: 1rem;
+  background-color: #007bff;
+  color: white;
+  transition: all 0.2s ease-in-out;
+}
+
+:deep(.home-btn:hover) {
+  transform: scale(1.05);
+  background-color: #0056b3;
+}
+</style>

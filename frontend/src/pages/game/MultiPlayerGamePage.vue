@@ -1,7 +1,12 @@
 <template>
-  <div class="game-page">
-    <div class="top-section bot-hand-area">
-      <div class="hand-container opponent-hand">
+  <!-- Adiciona um v-if no topo para só renderizar quando o estado básico existir -->
+  <div v-if="store.gameState.id" class="game-page">
+    <!-- ÁREA DO OPONENTE -->
+    <div class="top-section opponent-hand-area">
+      <div class="player-info" v-if="opponent">
+        <h3>{{ opponent.nickname }}</h3>
+      </div>
+      <div v-if="store.gameState.botHand" class="hand-container opponent-hand">
         <div
           v-for="n in store.gameState.botHand.length"
           :key="n"
@@ -12,6 +17,7 @@
       </div>
     </div>
 
+    <!-- ÁREA DO MEIO (Mesa, Baralho, Pontuação) -->
     <div class="middle-section">
       <div class="deck-trump-area">
         <div class="deck-container" v-if="store.gameState.deck.length > 0">
@@ -52,6 +58,7 @@
       </div>
     </div>
 
+    <!-- ÁREA DO JOGADOR -->
     <div class="bottom-section">
       <div class="hand-container player-hand">
         <div v-if="store.moveError" class="error-msg">
@@ -70,13 +77,25 @@
             v-for="card in store.gameState.playerHand"
             :key="card.rank.name + card.suit"
             :card="card"
-            :isMyTurn="store.gameState.playerTurn"
+            :isPlayable="isMyTurn"
             :isProcessing="store.gameState.isProcessingMove"
             @play-card="handlePlayCard" 
           />
+          {{
+            console.log(
+              "Is my turn:",
+              isMyTurn,
+              "Is processing:",
+              store.gameState.isProcessingMove
+            )
+          }}
         </div>
       </div>
     </div>
+  </div>
+  <!-- Ecrã de carregamento enquanto o estado não chega -->
+  <div v-else class="loading-screen">
+    <h1>Connecting to game...</h1>
   </div>
 </template>
 
@@ -100,6 +119,18 @@ onMounted(() => {
   store.bindSocket(socket);
     console.log("Multiplayer Page Mounted. Mode:", store.isMultiplayer ? "Multi" : "Single");
 });
+
+// try {
+//   await apiStore.postGame(gamePayload);
+//   if (playMode.value === "match")
+//     toast.success("Match guardado. Derrota por desistência.");
+//   else toast.success("Jogo guardado.");
+// } catch (error) {
+//   console.error("Erro ao guardar jogo:", error);
+//   toast.error("Erro ao comunicar com a API.");
+// } finally {
+//   router.push("/");
+// }
 </script>
 
 <style scoped>

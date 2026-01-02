@@ -90,13 +90,13 @@
         <h3 style="margin-bottom: 20px">{{ store.lastGameResult }}</h3>
 
         <div v-if="playMode === 'match'" class="overlay-buttons">
-          <button @click="store.startNextGame" class="btn-next">
+          <button @click="store.startSinglePlayerGame()" class="btn-next">
             Próximo Jogo (Match: {{ store.playerMatchScore }}-{{
               store.botMatchScore
             }})
           </button>
 
-          <button @click="handleForfeit" class="btn-forfeit">
+          <button @click="router.push('/')" class="btn-forfeit">
             Sair / Desistir
           </button>
         </div>
@@ -123,7 +123,14 @@
             :isMyTurn="store.gameState.playerTurn"
             :isProcessing="store.gameState.isProcessingMove"
             @play-card="store.playCard"
-          />
+          />{{
+            console.log(
+              "Is my turn:",
+              store.gameState.playerTurn,
+              "Is processing:",
+              store.gameState.isProcessingMove
+            )
+          }}
         </div>
       </div>
     </div>
@@ -147,50 +154,50 @@ const API_URL = "http://localhost:8000";
 const cardBackUrl = `${API_URL}/images/cartas/playing-cards-master/cardflipped.png`;
 // A rota já tem a propriedade com o modo de jogo (single_game ou match)
 const playMode = computed(() => route.meta.playMode);
-store.setPlayMode(playMode.value);
 
 // Controlo do modal de seleção
 const showModeSelection = ref(false);
 
 const selectMode = (mode) => {
-  store.setMatchType(mode);
-  store.startNextGame();
+  store.startGame("singleplayer", playMode.value, mode);
   showModeSelection.value = false;
 };
 
-// === FUNÇÃO DE DESISTIR ===
-const handleForfeit = async () => {
-  store.forfeitMatch();
-  store.resetForNewPlay();
+// === FUNÇÃO DE DESISTIR === não é necessária para o modo singleplayer
+// const handleForfeit = async () => {
+//   store.forfeitMatch();
+//   store.resetForNewPlay();
 
-  const currentTime = Date.now();
-  const startTime = store.matchStartTime || currentTime;
-  const durationSeconds = Math.floor((currentTime - startTime) / 1000);
+//   const currentTime = Date.now();
+//   const startTime = store.matchStartTime || currentTime;
+//   const durationSeconds = Math.floor((currentTime - startTime) / 1000);
 
-  const gamePayload = {
-    type: store.matchType,
-    player_score: store.playerMatchScore,
-    opponent_score: 4,
-    winner: "bot",
-    duration_seconds: durationSeconds > 0 ? durationSeconds : 10,
-    custom: {
-      trick_breakdown: store.trickHistory,
-      coins_change: -2,
-    },
-  };
+//   const gamePayload = {
+//     type: store.biscaType,
+//     player_score: store.playerMatchScore,
+//     opponent_score: 4,
+//     winner: "bot",
+//     duration_seconds: durationSeconds > 0 ? durationSeconds : 10,
+//     custom: {
+//       trick_breakdown: store.trickHistory,
+//       coins_change: -2,
+//     },
+//   };
 
-  try {
-    await apiStore.postGame(gamePayload);
-    if (playMode.value === "match")
-      toast.success("Match guardado. Derrota por desistência.");
-    else toast.success("Jogo guardado.");
-  } catch (error) {
-    console.error("Erro ao guardar jogo:", error);
-    toast.error("Erro ao comunicar com a API.");
-  } finally {
-    router.push("/");
-  }
-};
+//   //Não são guardados
+
+//   // try {
+//   //   await apiStore.postGame(gamePayload);
+//   //   if (playMode.value === "match")
+//   //     toast.success("Match guardado. Derrota por desistência.");
+//   //   else toast.success("Jogo guardado.");
+//   // } catch (error) {
+//   //   console.error("Erro ao guardar jogo:", error);
+//   //   toast.error("Erro ao comunicar com a API.");
+//   // } finally {
+//   //   router.push("/");
+//   // }
+// };
 
 onMounted(() => {
   if (
