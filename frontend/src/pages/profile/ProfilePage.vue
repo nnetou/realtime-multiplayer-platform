@@ -172,6 +172,7 @@
 import { ref, onMounted, inject, computed } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
+import axios from 'axios'; 
 const serverBaseURL = inject("serverBaseURL");
 // IMPORTANTE: Adicionei estes imports de volta porque são usados no card de Achievements
 import {
@@ -223,6 +224,8 @@ const joinedAt = computed(() => {
   });
 });
 
+// ProfilePage.vue
+
 onMounted(async () => {
   if (!authStore.isAuthenticated) {
     router.push({ name: "login" });
@@ -231,43 +234,41 @@ onMounted(async () => {
 
   currentUser.value = { ...authStore.user };
 
-  // Buscar estatísticas atualizadas
+  // Usa o URL base injetado (boa prática) ou o authStore para o token
+  const token = authStore.token || localStorage.getItem('token'); 
+
+  // --- CORREÇÃO NAS ESTATÍSTICAS ---
   try {
-    const statsResponse = await fetch(
-      "http://localhost:8000/api/me/statistics",
-      {
-        headers: {
-          Authorization: `Bearer ${sessionStorage.getItem("token")}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    const statsResponse = await axios.get(`${serverBaseURL}/api/me/statistics`);
+    currentUser.value.statistics = statsResponse.data;
+    
     if (statsResponse.ok) {
       const stats = await statsResponse.json();
       currentUser.value.statistics = stats;
+    } else {
+        // Se o token expirou, fazer logout
+        if (statsResponse.status === 401) {
+            authStore.logout();
+        }
     }
   } catch (error) {
     console.error("Failed to fetch statistics:", error);
   }
 
-  // Fetch achievements
+  // --- CORREÇÃO NOS ACHIEVEMENTS ---
   try {
-    const response = await fetch("http://localhost:8000/api/me/achievements", {
-      headers: {
-        Authorization: `Bearer ${sessionStorage.getItem("token")}`,
-        "Content-Type": "application/json",
-      },
-    });
+    const response = await axios.get(`${serverBaseURL}/api/me/achievements`);
+    achievements.value = response.data;
     if (response.ok) {
       achievements.value = await response.json();
-      // Compute description
+      // Compute description logic...
       const capoteCount = achievements.value.filter(
         (a) => a.type.toLowerCase() === "capote"
       ).length;
       const bandeiraCount = achievements.value.filter(
         (a) => a.type.toLowerCase() === "bandeira"
       ).length;
-      const jogosGanhos = achievements.value.length; // Assuming each achievement is a win
+      const jogosGanhos = achievements.value.length; 
       achievementDescription.value = `Capote: ${capoteCount} Bandeira: ${bandeiraCount} Jogos ganhos: ${jogosGanhos}`;
     }
   } catch (error) {

@@ -80,10 +80,19 @@ class MatchController extends Controller
                 // --- PASSO 1: CRIAR O MATCH ---
                 $match = new MatchModel();
                 
-                // <-- CORREÇÃO 2: Usar o tipo enviado ou '3' se não existir
-                $match->type = $validated['type'] ?? '3'; 
-                
-                $match->status = 'Ended';
+                $rawType = $validated['type'] ?? '3';
+
+        if (in_array($rawType, ['3', 'bisca_3', 'single_game'])) {
+            $match->type = '3'; // Valor aceite pela DB
+        } elseif (in_array($rawType, ['9', 'bisca_9', 'match'])) {
+            $match->type = '9'; // Valor aceite pela DB
+        } else {
+            // Se for outro valor, tentamos gravar, mas pode dar erro se a DB não permitir
+            $match->type = $rawType; 
+        }
+        // -----------------------------
+
+        $match->status = 'Ended';
                 $match->player1_user_id = $user->id;
                 $match->player2_user_id = $bot->id;
                 $match->timestamps = false;

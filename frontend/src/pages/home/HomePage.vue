@@ -110,7 +110,7 @@
           >
           <CardDescription class="text-base text-[#7f8c8d] pt-1">
             {{
-              authStore.user.type === "P"
+              authStore.type === "P"
                 ? "Review your multiplayer past games!"
                 : "Review all of the games!"
             }}</CardDescription

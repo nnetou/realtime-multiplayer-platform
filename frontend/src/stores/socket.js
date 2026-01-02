@@ -50,11 +50,11 @@ export const useSocketStore = defineStore('socket', () => {
         socket.emit('game:move', data);
     };
 
-    const emitCreateGame = (playMode, biscaType) => {
-        console.log('[Socket] Emitting create-game', playMode, biscaType)
-        socket.emit('create-game', playMode, biscaType)
+    const emitCreateGame = (gameData) => {
+        // gameData será o objeto { playerName: '...' } que enviámos do componente
+        console.log('[Socket] Emitting create-game', gameData);
+        socket.emit('create-game', gameData);
     }
-
     const emitJoinGame = (gameId) => {
         console.log(`[Socket] Emitting join-game for game ${gameId}`)
         socket.emit('join-game', { gameId })

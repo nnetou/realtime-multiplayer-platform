@@ -21,9 +21,9 @@ class UserStatisticsController extends Controller
         $totalWins = $user->matchesWon()->count();
 
         // Vitórias por tipo de jogo
-        $bisca3Wins = $user->matchesWon()->where('type', 'bisca_3')->count();
-        $bisca9Wins = $user->matchesWon()->where('type', 'bisca_9')->count();
-
+        $bisca3Wins = $user->matchesWon()->whereIn('type', ['3', 'bisca_3'])->count();
+    $bisca9Wins = $user->matchesWon()->whereIn('type', ['9', 'bisca_9'])->count();
+    // ---------------------
         return response()->json([
             'total_matches' => $totalMatches,
             'total_wins' => $totalWins,
