@@ -86,7 +86,6 @@
         </div>
       </Card>
 
-      <!-- Statistics Card -->
       <Card class="w-full shadow-xl border-none bg-white rounded-xl">
         <CardHeader>
           <CardTitle
@@ -110,56 +109,97 @@
                 />
               </svg>
             </span>
-            Statistics
+            Achievements
           </CardTitle>
-          <CardDescription
-            >Your profile statistics and achievements</CardDescription
-          >
+          <CardDescription>Profile achievements</CardDescription>
         </CardHeader>
         <CardContent>
-          <div class="mb-4">
-            <h3 class="font-semibold text-lg mb-2">General Statistics</h3>
-            <ul class="space-y-1 text-base">
-              <li>
-                <strong>Total Matches:</strong>
-                {{ currentUser.statistics?.total_matches ?? 0 }}
-              </li>
-              <li>
-                <strong>Total Wins:</strong>
-                {{ currentUser.statistics?.total_wins ?? 0 }}
-              </li>
-              <li>
-                <strong>Bisca of 3 wins:</strong>
-                {{ currentUser.statistics?.bisca_3_wins ?? 0 }}
-              </li>
-              <li>
-                <strong>Bisca of 9 wins:</strong>
-                {{ currentUser.statistics?.bisca_9_wins ?? 0 }}
-              </li>
-            </ul>
-          </div>
-          <div>
-            <h3 class="font-semibold text-lg mb-2">Achievements</h3>
-            <ul class="space-y-1 text-base">
-              <li>
-                <strong>Capote:</strong>
-                {{
-                  achievements.filter((a) => a.type.toLowerCase() === "capote")
-                    .length
-                }}
-              </li>
-              <li>
-                <strong>Bandeira:</strong>
-                {{
-                  achievements.filter(
-                    (a) => a.type.toLowerCase() === "bandeira"
-                  ).length
-                }}
-              </li>
-            </ul>
+          <ul class="space-y-1 text-base">
+            <li>
+              <strong>Capote:</strong>
+              {{
+                achievements.filter((a) => a.type.toLowerCase() === "capote")
+                  .length
+              }}
+            </li>
+            <li>
+              <strong>Bandeira:</strong>
+              {{
+                achievements.filter(
+                  (a) => a.type.toLowerCase() === "bandeira"
+                ).length
+              }}
+            </li>
+          </ul>
+        </CardContent>
+      </Card>
+
+      <Card
+        v-if="!isAdmin"
+        class="w-full shadow-xl border border-red-200 bg-white rounded-xl"
+      >
+        <CardHeader>
+          <CardTitle class="text-2xl font-bold text-red-700">Danger Zone</CardTitle>
+          <CardDescription class="text-red-600">
+            Deleting your account is irreversible and you will permanently lose all your coins.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p class="text-sm text-gray-700">This action requires your current password.</p>
+            <Button
+              variant="destructive"
+              class="bg-red-600 hover:bg-red-700 text-white"
+              @click="openDeleteModal"
+            >
+              Delete Account
+            </Button>
           </div>
         </CardContent>
       </Card>
+
+      <div
+        v-if="showDeleteModal"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
+      >
+        <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
+          <h2 class="text-xl font-bold text-gray-900 mb-2">Confirm account deletion</h2>
+          <p class="text-sm text-gray-700 mb-4">
+            This action is irreversible and you will permanently lose all your coins. Enter your current password to confirm.
+          </p>
+
+          <label class="block text-sm font-medium text-gray-700 mb-1" for="delete-password">Password</label>
+          <input
+            id="delete-password"
+            v-model="deletePassword"
+            type="password"
+            class="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-100"
+            placeholder="Current password"
+            @keyup.enter="confirmDelete"
+          />
+          <p v-if="deleteError" class="mt-2 text-sm text-red-600">{{ deleteError }}</p>
+
+          <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+            <Button
+              variant="outline"
+              class="bg-gray-100 text-gray-800 hover:bg-gray-200"
+              @click="closeDeleteModal"
+              :disabled="deleteLoading"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              class="bg-red-600 hover:bg-red-700 text-white"
+              :disabled="deleteLoading || !deletePassword"
+              @click="confirmDelete"
+            >
+              <span v-if="deleteLoading">Deleting...</span>
+              <span v-else>Confirm delete</span>
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -168,7 +208,7 @@
 import { ref, onMounted, inject, computed } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
-import axios from 'axios'; 
+import axios from 'axios';
 const serverBaseURL = inject("serverBaseURL");
 // IMPORTANTE: Adicionei estes imports de volta porque são usados no card de Achievements
 import {
@@ -182,6 +222,12 @@ import { Button } from "@/components/ui/button";
 
 const router = useRouter();
 const authStore = useAuthStore();
+
+const showDeleteModal = ref(false);
+const deletePassword = ref("");
+const deleteLoading = ref(false);
+const deleteError = ref("");
+const isAdmin = computed(() => authStore.user?.type === 'A');
 
 const getUserAvatar = () => {
   const user = authStore.user;
@@ -230,27 +276,6 @@ onMounted(async () => {
 
   currentUser.value = { ...authStore.user };
 
-  // Usa o URL base injetado (boa prática) ou o authStore para o token
-  const token = authStore.token || localStorage.getItem('token'); 
-
-  // --- CORREÇÃO NAS ESTATÍSTICAS ---
-  try {
-    const statsResponse = await axios.get(`${serverBaseURL}/api/me/statistics`);
-    currentUser.value.statistics = statsResponse.data;
-    
-    if (statsResponse.ok) {
-      const stats = await statsResponse.json();
-      currentUser.value.statistics = stats;
-    } else {
-        // Se o token expirou, fazer logout
-        if (statsResponse.status === 401) {
-            authStore.logout();
-        }
-    }
-  } catch (error) {
-    console.error("Failed to fetch statistics:", error);
-  }
-
   // --- CORREÇÃO NOS ACHIEVEMENTS ---
   try {
     const response = await axios.get(`${serverBaseURL}/api/me/achievements`);
@@ -264,7 +289,7 @@ onMounted(async () => {
       const bandeiraCount = achievements.value.filter(
         (a) => a.type.toLowerCase() === "bandeira"
       ).length;
-      const jogosGanhos = achievements.value.length; 
+      const jogosGanhos = achievements.value.length;
       achievementDescription.value = `Capote: ${capoteCount} Bandeira: ${bandeiraCount} Jogos ganhos: ${jogosGanhos}`;
     }
   } catch (error) {
@@ -275,6 +300,39 @@ onMounted(async () => {
 const logout = async () => {
   await authStore.logout();
   router.push({ name: "login" });
+};
+
+const openDeleteModal = () => {
+  deleteError.value = "";
+  deletePassword.value = "";
+  showDeleteModal.value = true;
+};
+
+const closeDeleteModal = () => {
+  if (deleteLoading.value) return;
+  showDeleteModal.value = false;
+};
+
+const confirmDelete = async () => {
+  if (!deletePassword.value) {
+    deleteError.value = "Password is required";
+    return;
+  }
+
+  deleteLoading.value = true;
+  deleteError.value = "";
+
+  try {
+    await axios.delete(`${serverBaseURL}/api/users/me`, {
+      data: { password: deletePassword.value },
+    });
+    await authStore.logout();
+    router.push({ name: "login" });
+  } catch (error) {
+    deleteError.value = error.response?.data?.error || "Failed to delete account";
+  } finally {
+    deleteLoading.value = false;
+  }
 };
 
 const getAchievementIcon = (type) => {

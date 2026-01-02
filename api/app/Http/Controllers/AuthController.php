@@ -146,10 +146,21 @@ class AuthController extends Controller
     {
         $user = $request->user();
 
+        $request->validate([
+            'password' => 'required|string',
+        ]);
+
         // Prevent admins from deleting their own accounts
         if ($user->type === 'A') {
             return response()->json(['error' => 'Administrators cannot delete their own accounts'], 403);
         }
+
+        if (!Hash::check($request->password, $user->password)) {
+            return response()->json(['error' => 'Incorrect password'], 422);
+        }
+
+        // Revoke all tokens before deleting
+        $user->tokens()->delete();
 
         // Soft delete the user
         $user->delete();

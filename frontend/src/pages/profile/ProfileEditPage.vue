@@ -123,21 +123,6 @@
                   </Button>
                 </div>
 
-                <div class="mt-8 pt-6 border-t border-gray-200">
-                  <h3 class="text-lg font-semibold text-red-600 mb-4">Danger Zone</h3>
-                  <p class="text-sm text-gray-600 mb-4">
-                    Deleting your account is permanent and will forfeit all your coins. This action cannot be undone.
-                  </p>
-                  <Button
-                    type="button"
-                    @click="confirmDelete"
-                    variant="destructive"
-                    size="lg"
-                    class="bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
-                  >
-                    Delete Account
-                  </Button>
-                </div>
               </form>
             </CardContent>
           </Card>
@@ -249,33 +234,6 @@ const updateProfile = async () => {
     toast.error(error.response?.data?.message || 'Failed to update profile')
   } finally {
     loading.value = false
-  }
-}
-
-const confirmDelete = async () => {
-  if (!confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
-    return
-  }
-
-  try {
-    const response = await fetch(`${serverBaseURL}/api/me/account/delete`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (response.ok) {
-      toast.success('Account deleted successfully')
-      authStore.logout()
-      router.push({ name: 'login' })
-    } else {
-      const error = await response.json()
-      toast.error(error.error || 'Failed to delete account')
-    }
-  } catch (error) {
-    toast.error('Failed to delete account')
   }
 }
 </script>

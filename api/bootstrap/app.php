@@ -15,6 +15,9 @@ return Application::configure(basePath: dirname(__DIR__))
       $middleware->api(prepend: [
              \App\Http\Middleware\SetImmutableCache::class,
         ]);
+      $middleware->alias([
+          'admin' => \App\Http\Middleware\IsAdmin::class,
+      ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
