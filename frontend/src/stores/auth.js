@@ -82,6 +82,11 @@ export const useAuthStore = defineStore('auth', {
 
             // Recarrega a página para limpar tudo da memória
             window.location.href = '/login';
+        },
+
+        setUser(user) {
+            this.user = user;
+            localStorage.setItem('user', JSON.stringify(user));
         }
     }
 });

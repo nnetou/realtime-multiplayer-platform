@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { useAuthStore } from './auth';
 import { useSocketStore } from './socket';
-import { BiscaEngine } from '../lib/BiscaEngine'; 
+import { BiscaEngine } from '../lib/BiscaEngine';
 
 const engine = new BiscaEngine();
 
@@ -25,37 +25,38 @@ class Card {
 }
 
 const reviveCard = (plainCard) => {
-  if (!plainCard || !plainCard.suit) return plainCard;
-  if (plainCard instanceof Card) return plainCard;
-  
-  const suitValue = plainCard.suit?.name || plainCard.suit;
-  const suit = Object.values(Suit).find(s => s === suitValue) || suitValue;
-  
-  let rank = plainCard.rank;
-  if (plainCard.rank?.name) {
-      const foundRank = Object.values(Rank).find(r => r.name === plainCard.rank.name);
-      if (foundRank) rank = foundRank;
-  }
+    if (!plainCard || !plainCard.suit) return plainCard;
+    if (plainCard instanceof Card) return plainCard;
 
-  if (suit && rank) {
-    return new Card(suit, rank, plainCard.imageUrl, plainCard.code);
-  }
-  return plainCard;
+    const suitValue = plainCard.suit?.name || plainCard.suit;
+    const suit = Object.values(Suit).find(s => s === suitValue) || suitValue;
+
+    let rank = plainCard.rank;
+    if (plainCard.rank?.name) {
+        const foundRank = Object.values(Rank).find(r => r.name === plainCard.rank.name);
+        if (foundRank) rank = foundRank;
+    }
+
+    if (suit && rank) {
+        return new Card(suit, rank, plainCard.imageUrl, plainCard.code);
+    }
+    return plainCard;
 };
 
 export const useGameStore = defineStore('game', {
     state: () => ({
         socket: null,
-        games: [], 
+        games: [],
         availableGames: [],
+        myGames: [],
         multiplayerGame: null,
         isMultiplayer: false,
         socketId: null,
-        
+
         gameState: {
             deck: [],
             playerHand: [],
-            botHand: [], 
+            botHand: [],
             tableCards: [],
             trunfo: null,
             trunfoSuit: null,
@@ -64,10 +65,10 @@ export const useGameStore = defineStore('game', {
             playerTurn: false,
             gameFinished: false,
             isProcessingMove: false,
-            playMode: 'match', 
+            playMode: 'match',
             winner: null
         },
-    
+
         playMode: 'match',
         playerMatchScore: 0,
         botMatchScore: 0,
@@ -90,77 +91,88 @@ export const useGameStore = defineStore('game', {
 
     actions: {
         bindSocket(s) { this.socket = s; },
-        setGames(games) { this.games = games; this.availableGames = games.filter(g => g.status === 'waiting'); },
+        setGames(games) {
+            const authStore = useAuthStore();
+            const myUserId = authStore.user?.id;
+            console.log(`[GameStore] Setting games | Total: ${games.length} | My Socket ID: ${myUserId}`);
+
+            this.myGames = games.filter(game => game.player1Id === myUserId);
+            this.availableGames = games.filter(game => game.player1Id !== myUserId);
+            console.log(`My Games: ${this.myGames.length} | Available Games: ${this.availableGames.length}`);
+            games.forEach(game => {
+                console.log(`Game ID: ${game.id} | Creator: ${game.player1Id}`);
+            });
+        },
 
         // --- A FUNÇÃO QUE DAVA ERRO ---
         updateStateFromServer(serverState) {
-             console.log("📥 [GameStore] updateState:", serverState);
-             this.isMultiplayer = true;
-             
-             if (serverState.id) this.multiplayerGame = { id: String(serverState.id) };
-             if (serverState.playMode) this.gameState.playMode = serverState.playMode;
-             
-             // Minha mão
-             if (serverState.myHand && Array.isArray(serverState.myHand)) {
-                 this.gameState.playerHand = serverState.myHand.map(reviveCard);
-             }
+            console.log("📥 [GameStore] updateState:", serverState);
+            this.isMultiplayer = true;
 
-             // Mão do Oponente (Visual - Enche se estiver vazia no início)
-             if (this.gameState.playerHand.length > 0 && this.gameState.botHand.length === 0) {
-                 this.gameState.botHand = [{}, {}, {}]; 
-             }
+            if (serverState.id) this.multiplayerGame = { id: String(serverState.id) };
+            if (serverState.playMode) this.gameState.playMode = serverState.playMode;
 
-             // Trunfo
-             if (serverState.trunfo) {
-                 this.gameState.trunfo = reviveCard(serverState.trunfo);
-                 this.gameState.trunfoSuit = serverState.trunfoSuit || serverState.trunfo.suit;
-             }
+            // Minha mão
+            if (serverState.myHand && Array.isArray(serverState.myHand)) {
+                this.gameState.playerHand = serverState.myHand.map(reviveCard);
+            }
 
-             // Mesa (Table) - Garante que não é undefined
-             if (serverState.table && Array.isArray(serverState.table)) {
-                 this.gameState.tableCards = serverState.table.map(item => reviveCard(item.card || item));
-             } else {
-                 this.gameState.tableCards = [];
-             }
+            // Mão do Oponente (Visual - Enche se estiver vazia no início)
+            if (this.gameState.playerHand.length > 0 && this.gameState.botHand.length === 0) {
+                this.gameState.botHand = [{}, {}, {}];
+            }
 
-             // Pontos
-             if (serverState.myScore !== undefined) {
-                 this.gameState.playerScore = serverState.myScore;
-                 this.gameState.botScore = serverState.opponentScore;
-             }
-             
-             // Turno
-             if (serverState.isMyTurn !== undefined) this.gameState.playerTurn = serverState.isMyTurn;
-             
-             // Deck
-             if (typeof serverState.deckCount === 'number') {
-                 this.gameState.deck = new Array(serverState.deckCount).fill({});
-             }
-             
-             this.sortHand();
+            // Trunfo
+            if (serverState.trunfo) {
+                this.gameState.trunfo = reviveCard(serverState.trunfo);
+                this.gameState.trunfoSuit = serverState.trunfoSuit || serverState.trunfo.suit;
+            }
+
+            // Mesa (Table) - Garante que não é undefined
+            if (serverState.table && Array.isArray(serverState.table)) {
+                this.gameState.tableCards = serverState.table.map(item => reviveCard(item.card || item));
+            } else {
+                this.gameState.tableCards = [];
+            }
+
+            // Pontos
+            if (serverState.myScore !== undefined) {
+                this.gameState.playerScore = serverState.myScore;
+                this.gameState.botScore = serverState.opponentScore;
+            }
+
+            // Turno
+            if (serverState.isMyTurn !== undefined) this.gameState.playerTurn = serverState.isMyTurn;
+
+            // Deck
+            if (typeof serverState.deckCount === 'number') {
+                this.gameState.deck = new Array(serverState.deckCount).fill({});
+            }
+
+            this.sortHand();
         },
 
         handleOpponentMove(card) {
-             const c = reviveCard(card);
-             
-             // 1. Adicionar carta à mesa (sem duplicados)
-             const exists = this.gameState.tableCards.some(tc => tc.code === c.code);
-             if (!exists) {
-                 this.gameState.tableCards.push(c);
-             }
-             
-             // 2. Remover visualmente carta do oponente
-             if (this.gameState.botHand.length > 0) {
-                 this.gameState.botHand.pop();
-             }
+            const c = reviveCard(card);
 
-             // 3. ATUALIZAR O TURNO (A correção para o Player 2 jogar)              // Se a mesa tem 1 carta, significa que o oponente jogou a primeira.
-             // Logo, agora é a minha vez de responder.
-             if (this.gameState.tableCards.length === 1) {
-                 this.gameState.playerTurn = true;
-                 this.gameState.isProcessingMove = false; // Desbloqueia a UI
-                 console.log("👉 É a tua vez de jogar!");
-             }
+            // 1. Adicionar carta à mesa (sem duplicados)
+            const exists = this.gameState.tableCards.some(tc => tc.code === c.code);
+            if (!exists) {
+                this.gameState.tableCards.push(c);
+            }
+
+            // 2. Remover visualmente carta do oponente
+            if (this.gameState.botHand.length > 0) {
+                this.gameState.botHand.pop();
+            }
+
+            // 3. ATUALIZAR O TURNO (A correção para o Player 2 jogar)              // Se a mesa tem 1 carta, significa que o oponente jogou a primeira.
+            // Logo, agora é a minha vez de responder.
+            if (this.gameState.tableCards.length === 1) {
+                this.gameState.playerTurn = true;
+                this.gameState.isProcessingMove = false; // Desbloqueia a UI
+                console.log("👉 É a tua vez de jogar!");
+            }
         },
 
         handleServerTrickResult(data, mySocketId) {
@@ -169,7 +181,7 @@ export const useGameStore = defineStore('game', {
                 this.gameState.tableCards = []; // Limpa mesa
                 this.gameState.playerTurn = (data.nextTurn === mySocketId);
                 this.gameState.isProcessingMove = false;
-                
+
                 if (amIWinner) this.gameState.playerScore += data.pointsInTrick;
                 else this.gameState.botScore += data.pointsInTrick;
             }, 1500);
@@ -179,12 +191,12 @@ export const useGameStore = defineStore('game', {
             const c = reviveCard(card);
             this.gameState.playerHand.push(c);
             this.sortHand();
-            if(typeof deckCount === 'number') this.gameState.deck = new Array(deckCount).fill({});
+            if (typeof deckCount === 'number') this.gameState.deck = new Array(deckCount).fill({});
         },
 
         opponentDrewCard(deckCount) {
             this.gameState.botHand.push({});
-            if(typeof deckCount === 'number') this.gameState.deck = new Array(deckCount).fill({});
+            if (typeof deckCount === 'number') this.gameState.deck = new Array(deckCount).fill({});
         },
 
         createGame(socket) {
@@ -194,8 +206,8 @@ export const useGameStore = defineStore('game', {
                 socket.emit('create-game', { playerName: name });
             }
         },
-        
-        cancelGame(socket, game) { 
+
+        cancelGame(socket, game) {
             if (socket) socket.emit('game:cancel', { gameId: game.id });
         },
 
@@ -264,7 +276,7 @@ export const useGameStore = defineStore('game', {
             const card2 = this.gameState.tableCards[1];
             let playerWon = false;
             const winningCard = engine.getWinningCard(card1, card2, this.gameState.trunfoSuit);
-            
+
             // Lógica Single Player de turno
             if (!this.gameState.playerTurn) { if (winningCard === card1) playerWon = true; } // Bot jogou 2ª
             else { if (winningCard === card2) playerWon = true; } // Player jogou 2ª
@@ -275,7 +287,7 @@ export const useGameStore = defineStore('game', {
 
             setTimeout(() => {
                 this.gameState.tableCards = [];
-                this.drawPhase(playerWon); 
+                this.drawPhase(playerWon);
             }, 1500);
         },
 
@@ -286,7 +298,7 @@ export const useGameStore = defineStore('game', {
                 return;
             }
             const c1 = this.gameState.deck.pop();
-            const c2 = this.gameState.deck.pop(); 
+            const c2 = this.gameState.deck.pop();
             if (c1) {
                 if (playerWon) { this.gameState.playerHand.push(c1); if (c2) this.gameState.botHand.push(c2); }
                 else { this.gameState.botHand.push(c1); if (c2) this.gameState.playerHand.push(c2); }
@@ -321,7 +333,7 @@ export const useGameStore = defineStore('game', {
             };
             this.moveError = null;
         },
-        
+
         async saveGame() { }
     }
 });

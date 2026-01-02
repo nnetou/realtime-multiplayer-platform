@@ -65,11 +65,12 @@ export function serverStart(port) {
             const gameId = String(Date.now());
             // Garante que apanha o nome do jogador ou usa um default
             const creatorName = data?.playerName || "Jogador " + socket.id.substring(0, 3);
-            
+
             const newGame = {
                 id: gameId,
                 creatorId: socket.id,
                 creatorName: creatorName,
+                player1Id: data?.player1Id || socket.id,
                 player1Name: creatorName,
                 player2: null,
                 status: 'waiting'
@@ -211,7 +212,7 @@ export function serverStart(port) {
                         const s1 = game.state.p1Score; const s2 = game.state.p2Score;
                         const getMP = (s) => s === 120 ? 4 : s > 90 ? 2 : s > 60 ? 1 : 0;
                         const winnerSocketId = (s1 > s2) ? game.creatorId : game.player2;
-                        
+
                         const finalResult = {
                             winner: { id: winnerSocketId, nickname: "Vencedor" },
                             p1Score: s1, p2Score: s2,

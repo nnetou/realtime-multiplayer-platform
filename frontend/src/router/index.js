@@ -6,12 +6,14 @@ import SinglePlayerGamePage from '../pages/game/SinglePlayerGamePage.vue'
 import MultiPlayerLobbyPage from '../pages/game/MultiPlayerLobbyPage.vue'
 import MultiPlayerGamePage from '../pages/game/MultiPlayerGamePage.vue'
 import LoginPage from '../pages/login/LoginPage.vue'
+import RegisterPage from '../pages/login/RegisterPage.vue'
 import AboutPage from '../pages/about/AboutPage.vue'
 import HistoryPage from '../pages/history/HistoryPage.vue'
 import ScoreboardsPage from '../pages/scoreboards/ScoreboardsPage.vue'
 import ProfilePage from '../pages/profile/ProfilePage.vue'
 import ProfileEditPage from '../pages/profile/ProfileEditPage.vue'
 import AdminHistoryPage from '../pages/history/AdminHistoryPage.vue'
+import AdminUserList from '../pages/admin/AdminUserList.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -77,6 +79,11 @@ const router = createRouter({
       component: LoginPage,
     },
     {
+      path: '/register',
+      name: 'register',
+      component: RegisterPage,
+    },
+    {
       path: '/profile',
       name: 'profile',
       component: ProfilePage,
@@ -105,6 +112,12 @@ const router = createRouter({
       name: 'scoreboards',
       component: ScoreboardsPage,
       meta: { requiresAuth: true },
+    },
+    {
+      path: '/admin/users',
+      name: 'admin-users',
+      component: AdminUserList,
+      meta: { requiresAuth: true, requiresAdmin: true },
     }
   ],
 })

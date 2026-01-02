@@ -7,10 +7,11 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\MatchController;
 use App\Http\Controllers\CoinController;
 use App\Http\Controllers\ShopController;
-use App\Http\Controllers\UserStatisticsController;
+use App\Http\Controllers\AdminController;
+// use App\Http\Controllers\UserStatisticsController; // removed stats route
 
 Route::post('/login', [AuthController::class, 'login'])->name('login');
-Route::post('/register', [AuthController::class, 'register']);
+Route::post('/auth/register', [AuthController::class, 'register'])->name('register');
 
 // 2. ROTAS PÚBLICAS
 Route::get('/image-proxy/{filename}', [ShopController::class, 'getImage']);
@@ -41,7 +42,6 @@ Route::middleware('auth:sanctum')->group(function () {
         return $request->user();
     });
     Route::put('/users/me', [AuthController::class, 'updateProfile']);
-    Route::get('/me/statistics', [UserStatisticsController::class, 'index']);
     Route::post('/logout', [AuthController::class, 'logout']);
 
     Route::post('/matches', [MatchController::class, 'store']);
@@ -51,7 +51,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me/coins', [CoinController::class, 'getBalance']);
     Route::get('/me/coin-transactions', [CoinController::class, 'getTransactions']);
     Route::get('/me/achievements', [AuthController::class, 'getAchievements']);
-    Route::post('/me/account/delete', [AuthController::class, 'deleteAccount']);
+    Route::delete('/users/me', [AuthController::class, 'deleteAccount']);
 
     // Ações de compra continuam protegidas
     Route::post('/shop/buy', [ShopController::class, 'buy']);
@@ -61,5 +61,14 @@ Route::middleware('auth:sanctum')->group(function () {
     // O pedido passará primeiro pelo 'auth:sanctum' e depois pelo nosso middleware 'admin'
     Route::get('/admin/history', [MatchController::class, 'allMatchesHistory'])
         ->middleware('admin');
+
+    // --- ADMIN USER MANAGEMENT ---
+    Route::middleware('admin')->prefix('admin')->group(function () {
+        Route::get('/users', [AdminController::class, 'listUsers']);
+        Route::patch('/users/{id}/block', [AdminController::class, 'blockUser']);
+        Route::patch('/users/{id}/unblock', [AdminController::class, 'unblockUser']);
+        Route::delete('/users/{id}', [AdminController::class, 'deleteUser']);
+        Route::post('/users', [AdminController::class, 'createAdmin']);
+    });
 });
 

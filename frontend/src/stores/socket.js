@@ -20,7 +20,7 @@ export const useSocketStore = defineStore('socket', () => {
 
     const emitLeave = () => { socket.emit('leave'); joined.value = false; }
     const emitGetGames = () => { socket.emit('get-games') }
-    
+
     const emitJoinGame = (gameId) => {
         console.log(`[Socket] A entrar no jogo ${gameId}...`)
         socket.emit('join-game', { gameId: gameId })
@@ -46,7 +46,7 @@ export const useSocketStore = defineStore('socket', () => {
 
     // --- EVENTOS DO JOGO ---
     const handleGameEvents = () => {
-        
+
         // 1. LIMPEZA DE LISTENERS ANTIGOS (Isto resolve o problema de desaparecerem 2 cartas)
         socket.off('games');
         socket.off('game:started');
@@ -55,10 +55,11 @@ export const useSocketStore = defineStore('socket', () => {
         socket.off('deal-card');
         socket.off('opponent-drew');
         socket.off('game:ended');
-        
+
         // 2. DEFINIÇÃO DOS NOVOS LISTENERS
         socket.on('games', (games) => {
-            const gameStore = useGameStore(); 
+            console.log(`[Socket] server emited games | game count ${games.length}`)
+            const gameStore = useGameStore();
             gameStore.setGames(games)
         })
 
@@ -74,27 +75,27 @@ export const useSocketStore = defineStore('socket', () => {
         })
 
         socket.on('game:opponent_move', (data) => {
-            const gameStore = useGameStore(); 
+            const gameStore = useGameStore();
             gameStore.handleOpponentMove(data.card);
         });
 
         socket.on('trick-result', (data) => {
             const gameStore = useGameStore();
-            if(gameStore.handleServerTrickResult) {
+            if (gameStore.handleServerTrickResult) {
                 gameStore.handleServerTrickResult(data, socket.id);
             }
         });
 
         socket.on('deal-card', (data) => {
             const gameStore = useGameStore();
-            if(gameStore.addCardToHand) {
+            if (gameStore.addCardToHand) {
                 gameStore.addCardToHand(data.card, data.deckCount);
             }
         });
 
         socket.on('opponent-drew', (data) => {
-            const gameStore = useGameStore(); 
-            if(gameStore.opponentDrewCard) {
+            const gameStore = useGameStore();
+            if (gameStore.opponentDrewCard) {
                 gameStore.opponentDrewCard(data.deckCount);
             }
         });
@@ -102,18 +103,18 @@ export const useSocketStore = defineStore('socket', () => {
         socket.on('game:ended', (data) => {
             toast.success(`Fim de jogo!`);
             const gameStore = useGameStore();
-            
-            if(data.finalState) gameStore.updateStateFromServer(data.finalState);
-            if(data.winner) {
-                 gameStore.gameState.winner = data.winner;
-                 gameStore.gameState.gameFinished = true;
+
+            if (data.finalState) gameStore.updateStateFromServer(data.finalState);
+            if (data.winner) {
+                gameStore.gameState.winner = data.winner;
+                gameStore.gameState.gameFinished = true;
             }
             gameStore.saveGame();
         });
     }
 
     return {
-        joined, emitJoin, emitLeave, emitCreateGame, emitJoinGame, emitGetGames, 
+        joined, emitJoin, emitLeave, emitCreateGame, emitJoinGame, emitGetGames,
         emitCancelGame, emitPlayMove, handleConnection, handleGameEvents
     }
 })

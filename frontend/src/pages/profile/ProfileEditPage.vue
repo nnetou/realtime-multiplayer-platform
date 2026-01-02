@@ -15,6 +15,7 @@
                 :src="currentPhoto"
                 alt="Current Avatar"
                 class="w-32 h-32 rounded-full object-cover mx-auto border-4 border-[#1e8449]"
+                @error="handleImageError"
               />
               <div>
                 <label for="photo" class="block text-sm font-medium text-gray-700 mb-2">Change Avatar</label>
@@ -122,21 +123,6 @@
                   </Button>
                 </div>
 
-                <div class="mt-8 pt-6 border-t border-gray-200">
-                  <h3 class="text-lg font-semibold text-red-600 mb-4">Danger Zone</h3>
-                  <p class="text-sm text-gray-600 mb-4">
-                    Deleting your account is permanent and will forfeit all your coins. This action cannot be undone.
-                  </p>
-                  <Button
-                    type="button"
-                    @click="confirmDelete"
-                    variant="destructive"
-                    size="lg"
-                    class="bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
-                  >
-                    Delete Account
-                  </Button>
-                </div>
               </form>
             </CardContent>
           </Card>
@@ -156,6 +142,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Button } from '@/components/ui/button'
 
 const apiBaseURL = inject('apiBaseURL')
+const serverBaseURL = inject('serverBaseURL')
 const router = useRouter()
 const authStore = useAuthStore()
 const apiStore = useAPIStore()
@@ -172,25 +159,55 @@ const photoFile = ref(null)
 const currentPhoto = ref('')
 const loading = ref(false)
 
+const getUserAvatar = () => {
+  const user = authStore.user
+  const photoName = user?.photo_avatar_filename
+
+  if (!photoName) {
+    return `https://ui-avatars.com/api/?name=${
+      user?.nickname || "User"
+    }&background=random&color=fff`
+  }
+
+  if (photoName.startsWith("http")) return photoName
+
+  return `${serverBaseURL}/storage/photos_avatars/${photoName}`
+}
+
+const handleImageError = (e) => {
+  e.target.src = `https://ui-avatars.com/api/?name=${
+    authStore.user?.nickname || "User"
+  }&background=random&color=fff`
+}
+
 onMounted(() => {
-  if (!authStore.currentUser) {
+  if (!authStore.user) {
     router.push({ name: 'login' })
     return
   }
 
   form.value = {
-    name: authStore.currentUser.name || '',
-    email: authStore.currentUser.email || '',
-    nickname: authStore.currentUser.nickname || '',
+    name: authStore.user.name || '',
+    email: authStore.user.email || '',
+    nickname: authStore.user.nickname || '',
     password: '',
-    description: authStore.currentUser.description || '',
+    description: authStore.user.description || '',
   }
 
-  currentPhoto.value = authStore.currentUser.photo_url || ''
+  currentPhoto.value = getUserAvatar()
 })
 
 const onFileChange = (event) => {
-  photoFile.value = event.target.files[0]
+  const file = event.target.files[0]
+  if (file) {
+    photoFile.value = file
+    // Mostrar preview da nova imagem
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      currentPhoto.value = e.target.result
+    }
+    reader.readAsDataURL(file)
+  }
 }
 
 const updateProfile = async () => {
@@ -217,33 +234,6 @@ const updateProfile = async () => {
     toast.error(error.response?.data?.message || 'Failed to update profile')
   } finally {
     loading.value = false
-  }
-}
-
-const confirmDelete = async () => {
-  if (!confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
-    return
-  }
-
-  try {
-    const response = await fetch('http://localhost:8000/api/me/account/delete', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${sessionStorage.getItem('token')}`,
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (response.ok) {
-      toast.success('Account deleted successfully')
-      authStore.logout()
-      router.push({ name: 'login' })
-    } else {
-      const error = await response.json()
-      toast.error(error.error || 'Failed to delete account')
-    }
-  } catch (error) {
-    toast.error('Failed to delete account')
   }
 }
 </script>

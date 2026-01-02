@@ -164,6 +164,30 @@
       </Card>
 
       <Card
+        v-if="authStore.type === 'A'"
+        class="flex flex-1 flex-col w-full shadow-lg border-2 border-purple-300 rounded-xl bg-purple-50"
+      >
+        <CardHeader class="text-center">
+          <CardTitle class="text-3xl font-bold text-purple-700"
+            >Admin Panel 🔧</CardTitle
+          >
+          <CardDescription class="text-base text-purple-600 pt-1"
+            >Manage users and platform settings</CardDescription
+          >
+        </CardHeader>
+        <CardContent class="flex justify-center gap-4 mt-auto pt-6">
+          <Button
+            size="lg"
+            variant="secondary"
+            class="home-btn bg-purple-600 hover:bg-purple-700 text-white"
+            @click="router.push({ name: 'admin-users' })"
+          >
+            Manage Users
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card
         class="flex flex-1 flex-col w-full shadow-lg border-2 border-gray-200 rounded-xl"
       >
         <CardHeader class="text-center">
