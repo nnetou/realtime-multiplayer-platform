@@ -135,7 +135,7 @@ const cancelGame = (game) => {
 
 const joinGame = (game) => {
   // Chamada à função agora definida no socket.js
-  socketStore.emitJoinGame(game);
+  socketStore.emitJoinGame(game.id);
 };
 
 const startGame = (game) => {

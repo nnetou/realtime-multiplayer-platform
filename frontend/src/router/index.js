@@ -58,7 +58,7 @@ const router = createRouter({
             },
             {
               path: 'match',
-              name: 'mp-full-match',
+              name: 'multiplayer-full-match',
               component: MultiPlayerGamePage,
               meta: { playMode: 'match', requiresAuth: true }
             },

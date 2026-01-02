@@ -2,15 +2,15 @@ import { Server } from "socket.io";
 
 const games = [];
 
-// === LÓGICA INTERNA (Para não depender de ficheiros externos) ===
+// === LÓGICA INTERNA (INTACTA) ===
 const SUITS = ['hearts', 'diamonds', 'clubs', 'spades'];
 const RANKS = {
     '2': { value: 0, label: '2', order: 1 },
-    '3': { value: 10, label: '3', order: 10 }, // Ordem alta na bisca
+    '3': { value: 10, label: '3', order: 10 },
     '4': { value: 0, label: '4', order: 2 },
     '5': { value: 0, label: '5', order: 3 },
     '6': { value: 0, label: '6', order: 4 },
-    '7': { value: 10, label: '7', order: 9 }, // Bisca
+    '7': { value: 10, label: '7', order: 9 },
     'Q': { value: 2, label: 'Q', order: 5 },
     'J': { value: 3, label: 'J', order: 6 },
     'K': { value: 4, label: 'K', order: 7 },
@@ -39,24 +39,17 @@ function createDeck() {
 }
 
 function getWinningCard(c1, c2, trunfoSuit) {
-    // c1 é sempre a carta de quem abriu a vaza
     const isC1Trunfo = c1.suit === trunfoSuit;
     const isC2Trunfo = c2.suit === trunfoSuit;
 
-    // 1. Trunfos
-    if (!isC1Trunfo && isC2Trunfo) return c2; // Corte
+    if (!isC1Trunfo && isC2Trunfo) return c2;
     if (isC1Trunfo && !isC2Trunfo) return c1;
 
-    // 2. Mesmo naipe (ganha a maior ordem)
     if (c1.suit === c2.suit) {
-        // Na bisca: 2,4,5,6,Q,J,K,7,A,3 (Ordem definida no objeto RANKS acima)
-        // Se as ordens não estiverem perfeitas, usa-se o valor como desempate principal
         const val1 = (c1.rank.value || 0) * 100 + (c1.rank.order || 0);
         const val2 = (c2.rank.value || 0) * 100 + (c2.rank.order || 0);
         return val1 > val2 ? c1 : c2;
     }
-
-    // 3. Naipes diferentes (não trunfo) -> quem abriu ganha
     return c1;
 }
 
@@ -67,9 +60,12 @@ export function serverStart(port) {
 
     io.on("connection", (socket) => {
 
+        // --- CREATE GAME ---
         socket.on("create-game", (data) => {
             const gameId = String(Date.now());
+            // Garante que apanha o nome do jogador ou usa um default
             const creatorName = data?.playerName || "Jogador " + socket.id.substring(0, 3);
+            
             const newGame = {
                 id: gameId,
                 creatorId: socket.id,
@@ -84,26 +80,24 @@ export function serverStart(port) {
             socket.emit("game-created", newGame);
         });
 
-        socket.on("join-game", (gameToJoin) => {
-            const targetId = String(gameToJoin.id);
+        // --- JOIN GAME (CORRIGIDO) ---
+        socket.on("join-game", (data) => {
+            // Aceita { gameId: "..." } ou o objeto do jogo { id: "..." }
+            const targetId = String(data.gameId || data.id);
             const game = games.find(g => String(g.id) === targetId);
 
             if (game && !game.player2) {
                 game.player2 = socket.id;
-                game.status = 'ready';
+                game.status = 'playing'; // Alterado para playing para sair do lobby
 
-                // --- INICIALIZAÇÃO ROBUSTA ---
-                const fullDeck = createDeck(); // 40 cartas
-
+                // Inicialização do Jogo
+                const fullDeck = createDeck();
                 const p1Hand = fullDeck.splice(0, 3);
                 const p2Hand = fullDeck.splice(0, 3);
-
-                // Trunfo é a carta do fundo (índice 0). 
-                // NÃO a tiramos do array para manter o total de 34 cartas no monte.
                 const trunfo = fullDeck[0];
 
                 game.state = {
-                    deck: fullDeck, // Array com 34 cartas
+                    deck: fullDeck,
                     trunfo: trunfo,
                     trunfoSuit: trunfo.suit,
                     p1Hand: p1Hand, p2Hand: p2Hand,
@@ -114,28 +108,47 @@ export function serverStart(port) {
 
                 socket.join(targetId);
 
-                // Envia estado inicial
-                io.to(game.creatorId).emit("match-ready", {
-                    id: game.id, myHand: p1Hand, trunfo: trunfo,
-                    deckCount: game.state.deck.length, turn: true
+                console.log(`[Server] Game ${targetId} starting!`);
+
+                // 1. AVISAR PLAYER 1 (CRIADOR)
+                io.to(game.creatorId).emit("game:started", {
+                    id: game.id,
+                    playMode: 'match',
+                    myHand: p1Hand,
+                    trunfo: trunfo,
+                    trunfoSuit: trunfo.suit,
+                    deckCount: game.state.deck.length,
+                    isMyTurn: true, // Turno inicial
+                    opponent: 'Player 2'
                 });
 
-                io.to(game.player2).emit("match-ready", {
-                    id: game.id, myHand: p2Hand, trunfo: trunfo,
-                    deckCount: game.state.deck.length, turn: false
+                // 2. AVISAR PLAYER 2 (QUEM ENTROU)
+                io.to(game.player2).emit("game:started", {
+                    id: game.id,
+                    playMode: 'match',
+                    myHand: p2Hand,
+                    trunfo: trunfo,
+                    trunfoSuit: trunfo.suit,
+                    deckCount: game.state.deck.length,
+                    isMyTurn: false,
+                    opponent: game.creatorName
                 });
 
-                io.emit("games", games);
+                // Atualiza o lobby (remove a sala cheia)
+                io.emit("games", games.filter(g => g.status === 'waiting'));
             }
         });
 
+        // --- PLAY CARD ---
         socket.on("play-card", (data) => {
             const gameId = String(data.gameId);
             const game = games.find(g => String(g.id) === gameId);
             if (!game) return;
 
-            // 1. Mostra a carta ao oponente
-            socket.to(gameId).emit("opponent-played", data.card);
+            console.log(`[Server] Card played in game ${gameId}:`, data.card.rank.name);
+
+            // 1. Mostra a carta ao oponente (Evento renomeado para consistência)
+            socket.to(gameId).emit("game:opponent_move", { card: data.card });
 
             // 2. Guarda na mesa
             game.state.table.push({ player: socket.id, card: data.card });
@@ -159,26 +172,26 @@ export function serverStart(port) {
 
                 console.log(`🏆 Vaza: ${winnerId} ganha ${points}pts.`);
 
-                // DELAY DE 2 SEGUNDOS para limpeza
+                // Delay para ver quem ganhou
                 setTimeout(() => {
-                    // Envia ordem de limpeza e resultado
+                    // Envia resultado da vaza
                     io.to(gameId).emit("trick-result", {
                         winnerId: winnerId,
                         pointsInTrick: points,
                         p1Score: game.state.p1Score,
                         p2Score: game.state.p2Score,
-                        nextTurn: winnerId // O vencedor joga a seguir
+                        nextTurn: winnerId
                     });
 
                     // DISTRIBUIÇÃO DE CARTAS (DRAW)
                     if (game.state.deck.length > 0) {
-                        // Tira do topo (fim do array)
                         const cardWinner = game.state.deck.pop();
-                        const cardLoser = game.state.deck.pop();
+                        const cardLoser = game.state.deck.pop(); // Pode ser o trunfo
 
                         const loserId = (winnerId === game.creatorId) ? game.player2 : game.creatorId;
                         const deckCount = game.state.deck.length;
 
+                        // Envia cartas novas
                         if (cardWinner) {
                             io.to(winnerId).emit("deal-card", { card: cardWinner, deckCount });
                             io.to(loserId).emit("opponent-drew", { deckCount });
@@ -197,17 +210,19 @@ export function serverStart(port) {
                     if ((game.state.p1Score + game.state.p2Score) === 120) {
                         const s1 = game.state.p1Score; const s2 = game.state.p2Score;
                         const getMP = (s) => s === 120 ? 4 : s > 90 ? 2 : s > 60 ? 1 : 0;
+                        const winnerSocketId = (s1 > s2) ? game.creatorId : game.player2;
+                        
                         const finalResult = {
-                            winnerId: (s1 > s2) ? game.creatorId : game.player2,
+                            winner: { id: winnerSocketId, nickname: "Vencedor" },
                             p1Score: s1, p2Score: s2,
-                            p1MatchPoints: getMP(s1), p2MatchPoints: getMP(s2)
+                            finalState: { myScore: s1, opponentScore: s2 } // Para o updateState
                         };
-                        io.to(gameId).emit("game-ended", finalResult);
+                        io.to(gameId).emit("game:ended", finalResult);
                     }
                 }, 2000);
             }
         });
 
-        socket.on("get-games", () => { socket.emit("games", games); });
+        socket.on("get-games", () => { socket.emit("games", games.filter(g => g.status === 'waiting')); });
     });
 }
