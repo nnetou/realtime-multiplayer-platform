@@ -19,11 +19,13 @@ export const useAuthStore = defineStore('auth', {
         // Transformámos isto num GETTER. Ele calcula-se sozinho.
         // Se houver token, retorna true. Não há como enganar.
         isAuthenticated: (state) => !!state.token,
-        
+
         userName: (state) => state.user?.nickname || state.user?.name || "Utilizador",
+        type: (state) => state.user?.type || "P",
     },
 
     actions: {
+
         // Função chamada no main.js
         async restoreUser() {
             if (this.token) {
@@ -37,9 +39,15 @@ export const useAuthStore = defineStore('auth', {
 
         async login(credentials) {
             try {
+                const config = {
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+        };
                 // Ajusta o URL se necessário
-                const response = await axios.post('http://localhost:8000/api/login', credentials);
-                
+                const response = await axios.post('http://localhost:8000/api/login', credentials, config);
+
                 const token = response.data.access_token || response.data.token;
                 const user = response.data.user || response.data.data;
 
@@ -51,10 +59,10 @@ export const useAuthStore = defineStore('auth', {
                     // 2. Grava no Browser
                     localStorage.setItem('token', token);
                     localStorage.setItem('user', JSON.stringify(user));
-                    
+
                     // 3. Configura Axios
                     axios.defaults.headers.common['Authorization'] = 'Bearer ' + token;
-                    
+
                     return true;
                 }
                 return false;
@@ -67,11 +75,11 @@ export const useAuthStore = defineStore('auth', {
         async logout() {
             this.user = null;
             this.token = null;
-            
+
             localStorage.removeItem('token');
             localStorage.removeItem('user');
             delete axios.defaults.headers.common['Authorization'];
-            
+
             // Recarrega a página para limpar tudo da memória
             window.location.href = '/login';
         }

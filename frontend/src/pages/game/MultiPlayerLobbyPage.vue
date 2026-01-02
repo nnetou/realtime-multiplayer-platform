@@ -82,10 +82,9 @@
               :key="game.id"
               class="flex items-center justify-between p-4 border rounded-xl hover:bg-slate-50 transition-all"
             >
-            
-            <div>
+              <div>
                 <p class="font-bold text-lg">
-                  Sala de {{ game.player1Name  || "Anónimo" }}
+                  Sala de {{ game.player1Name || "Anónimo" }}
                 </p>
 
                 <div class="flex gap-2 mt-1">
@@ -127,9 +126,6 @@ const authStore = useAuthStore();
 const socketStore = useSocketStore();
 const socket = inject("socket");
 
-const createNewGame = () => {
-  gameStore.createGame(socket);
-};
 
 const cancelGame = (game) => {
   gameStore.cancelGame(socket, game);
@@ -149,6 +145,14 @@ onMounted(() => {
   // Ao entrar na página, pede a lista de jogos
   refreshGamesList();
 });
+
+// Certifica-te que a função createNewGame está atualizada também (da resposta anterior):
+const createNewGame = () => {
+    const userData = { 
+        playerName: authStore.user?.nickname || authStore.user?.name || "Jogador" 
+    };
+    socketStore.emitCreateGame(userData);
+};
 </script>
 
 <style scoped>

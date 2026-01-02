@@ -11,6 +11,7 @@ import HistoryPage from '../pages/history/HistoryPage.vue'
 import ScoreboardsPage from '../pages/scoreboards/ScoreboardsPage.vue'
 import ProfilePage from '../pages/profile/ProfilePage.vue'
 import ProfileEditPage from '../pages/profile/ProfileEditPage.vue'
+import AdminHistoryPage from '../pages/history/AdminHistoryPage.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -94,6 +95,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/admin/history',
+      name: 'admin-history',
+      component: AdminHistoryPage,
+      meta: { requiresAuth: true, requiresAdmin: true }, // Meta flag para admin
+    },
+    {
       path: '/scoreboards',
       name: 'scoreboards',
       component: ScoreboardsPage,
@@ -105,7 +112,7 @@ const router = createRouter({
 // === GUARDA DE NAVEGAÇÃO CORRIGIDO ===
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore()
-  
+
   // CORREÇÃO: Usar isAuthenticated em vez de isLoggedIn
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     toast.error('Esta navegação requer autenticação')

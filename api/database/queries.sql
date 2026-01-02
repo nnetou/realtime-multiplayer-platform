@@ -17,4 +17,7 @@ select id,
   from users;
 
   SELECT COUNT(*) FROM users;
+
+  UPDATE matches SET type = 'bisca_3' WHERE type = '3';
+
   

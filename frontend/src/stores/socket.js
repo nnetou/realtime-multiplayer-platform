@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { inject, ref, watch } from 'vue'
 import { useAuthStore } from './auth'
 import { useGameStore } from './gameStore'
+import { toast } from 'vue-sonner'
 import { useRouter } from 'vue-router'
 
 export const useSocketStore = defineStore('socket', () => {
@@ -10,121 +11,170 @@ export const useSocketStore = defineStore('socket', () => {
     const gameStore = useGameStore()
     const router = useRouter()
     const joined = ref(false)
+
+    // --- 1. AÇÕES (EMITS) ---
+
+    const emitJoin = (user) => {
+        if (joined.value) return
+        console.log(`[Socket] Joining Server`)
+        socket.emit('join', user)
+        joined.value = true
+    }
+
+    const emitLeave = () => {
+        socket.emit('leave')
+        console.log(`[Socket] Leaving Server`)
+        joined.value = false
+    }
+
+    const emitSyncInitialState = (gameState) => {
+        console.log('[Socket] Emitting game:sync_initial_state');
+        socket.emit('game:sync_initial_state', gameState);
+    };
+
+    const emitGetGames = () => {
+        socket.emit('get-games')
+    }
+
+    const emitPlayMove = (data) => {
+        // data = { gameId, card }
+        console.log(`[Socket] Emitting game:move for game ${data.gameId}`);
+        socket.emit('game:move', data);
+    };
+
+    const emitCreateGame = (gameData) => {
+        console.log('[Socket] Emitting create-game', gameData);
+        socket.emit('create-game', gameData);
+    }
+
+    const emitJoinGame = (gameId) => {
+        console.log(`[Socket] Emitting join-game for game ${gameId}`)
+        socket.emit('join-game', { gameId })
+    }
+
+    const emitCancelGame = (gameId) => {
+        console.log(`[Socket] Emitting game:cancel for game ${gameId}`);
+        socket.emit('game:cancel', { gameId });
+    };
+
+    const emitDeclareEnd = (gameId) => {
+        console.log(`[Socket] Emitting game:declare_end for game ${gameId}`);
+        socket.emit('game:declare_end', { gameId });
+    };
+
+    // --- 2. GESTÃO DE CONEXÃO E WATCHERS ---
+
+    // Observa mudanças no utilizador (Login/Logout)
+    watch(
+        () => authStore.currentUser,
+        (newUser) => {
+            if (newUser && socket.connected && !joined.value) {
+                emitJoin(newUser);
+            }
+        },
+        { immediate: true }
+    )
+
     const handleConnection = () => {
         socket.on('connect', () => {
-            console.log(`[Socket] Conectado: ${socket.id}`)
+            console.log(`[Socket] Connected -- ${socket.id}`)
             if (authStore.isLoggedIn && !joined.value) {
-                socket.emit('join', authStore.currentUser)
-                joined.value = true
+                emitJoin(authStore.currentUser)
             }
         })
+        socket.on('disconnect', () => {
+            joined.value = false
+            console.log(`[Socket] Disconnected -- ${socket.id}`)
+        })
     }
 
-    const emitGetGames = () => socket.emit('get-games')
-    const emitJoinGame = (game) => socket.emit('join-game', game)
-
-    const emitPlayCard = (gameId, card) => {
-        const cleanCard = JSON.parse(JSON.stringify(card));
-        socket.emit('play-card', { gameId: String(gameId), card: cleanCard });
-    }
+    // --- 3. EVENTOS DE JOGO (LISTENERS) ---
 
     const handleGameEvents = () => {
-        socket.on('games', (games) => gameStore.setGames(games))
-
-        socket.on('match-ready', (payload) => {
-            gameStore.setupMultiplayerMatch({
-                hand: payload.myHand,
-                trunfo: payload.trunfo,
-                deckCount: payload.deckCount,
-                myTurn: payload.turn,
-                gameId: payload.id,
-                socket: socket
-            });
-            router.push({ name: "mp-full-match" });
+        // Lista de Salas
+        socket.on('games', (games) => {
+            console.log(`[Socket] server emited games | game count ${games.length}`)
+            gameStore.setGames(games)
         })
 
-        socket.on('opponent-played', (card) => {
-            gameStore.onOpponentMove(card);
-        })
-
-        socket.on('deal-card', (data) => {
-            gameStore.addCardToHand(data.card, data.deckCount);
-        })
-
-        socket.on('opponent-drew', (data) => {
-            gameStore.opponentDrewCard(data.deckCount);
-        })
-
-        socket.on('deck-empty', () => {
-            gameStore.gameState.trunfo = null;
-            gameStore.gameState.deck = [];
-        })
-
-        socket.on('trick-result', (data) => {
-            gameStore.handleServerTrickResult(data, socket.id);
-        })
-
-        socket.on('game-ended', (result) => {
-            gameStore.handleGameEnd(result, socket.id);
-        })
-
+        // Inicialização
         socket.on('game:initialize', (gameData) => {
             console.log('[Socket] Received game:initialize. Generating and sharing state...');
-            // Delega a tarefa de gerar e partilhar para a gameStore
             gameStore.generateAndShareInitialState(gameData);
         })
 
+        // Jogo Começou
         socket.on('game:started', (serverState) => {
             console.log('[Socket] Received game:started')
             gameStore.updateStateFromServer(serverState)
             if (serverState.playMode === 'single_game')
-                router.push({ name: 'multiplayer-quick-game' })
+                router.push({ name: 'multiplayer-quick-game' }) // Verifica se esta rota existe
             else
-                router.push({ name: 'multiplayer-full-match' })
+                router.push({ name: 'multiplayer-full-match' }) // Verifica se esta rota existe no teu router
         })
 
+        // Atualização de Estado
         socket.on('game:state_update', (serverState) => {
             gameStore.updateStateFromServer(serverState);
         });
+
+        // Movimento do Oponente
         socket.on('game:opponent_move', (data) => {
             console.log('[Socket] Received opponent move:', data.card);
-            // Diz à gameStore para processar a jogada do oponente
             gameStore.handleOpponentMove(data.card);
         });
 
+        // Erros de Jogo
         socket.on('game:error', (errorMessage) => {
             toast.error(errorMessage);
-            // Se o erro foi numa jogada, precisamos de libertar o bloqueio
-            gameStore.gameState.isProcessingMove = false;
+            // Liberta o bloqueio da UI se houver erro
+            if (gameStore.gameState) gameStore.gameState.isProcessingMove = false;
         });
 
+        // Fim de Jogo (Versão Server-Side State)
         socket.on('game:ended', (data) => {
             console.log('[Socket] Received game:ended from server', data);
-            toast.success(`Game Over! Winner: ${data.winner.nickname}`);
-            // Aqui você pode atualizar a gameStore com o resultado final,
-            // ou simplesmente redirecionar para o lobby.
-            gameStore.updateStateFromServer(data.finalState); // Supondo que o servidor envia o estado final
+            
+            // Verifica se data.winner existe para evitar erro
+            const winnerName = data.winner?.nickname || "Desconhecido";
+            toast.success(`Game Over! Winner: ${winnerName}`);
+            
+            if(data.finalState) {
+                gameStore.updateStateFromServer(data.finalState);
+            }
 
-            gameStore.gameState.gameFinished = true;
-            gameStore.gameState.winner = data.winner; // Guarda o vencedor
+            if (gameStore.gameState) {
+                gameStore.gameState.gameFinished = true;
+                gameStore.gameState.winner = data.winner;
+            }
 
-            // 3. CHAMA A AÇÃO PARA GUARDAR NA BASE DE DADOS
+            // Gravar na BD (se necessário)
             gameStore.saveGame();
         });
-
-        //Ver se é necessário e como funciona
-        //     socket.on('game-change', (game) => {
-        //     gameStore.setMultiplayerGame(game)
-        // })
-
-        // ... outros eventos como 'game:finished', 'player:joined', etc.
+        
+        // Listener extra que tinhas no código (verifica se ainda é usado pelo servidor)
+        socket.on('game-ended', (result) => {
+             // Se o servidor envia 'game-ended' (kebab-case) em vez de 'game:ended', mantém este.
+             // Se não, podes apagar.
+             gameStore.handleGameEnd(result, socket.id);
+        })
     }
 
     return {
+        // Estado
+        joined,
+        // Actions
+        emitJoin,
+        emitLeave,
+        emitCreateGame,
+        emitJoinGame,
+        emitGetGames,
+        emitCancelGame,
+        emitDeclareEnd,
+        emitPlayMove,
+        emitSyncInitialState,
+        // Handlers
         handleConnection,
         handleGameEvents,
-        emitGetGames,
-        emitJoinGame,
-        emitPlayCard
     }
 })
