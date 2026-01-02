@@ -11,6 +11,7 @@ use App\Http\Controllers\UserStatisticsController;
 
 // 1. LOGIN
 Route::post('/login', [AuthController::class, 'login'])->name('login');
+Route::post('/auth/register', [AuthController::class, 'register'])->name('register');
 
 // 2. ROTAS PÚBLICAS
 Route::get('/image-proxy/{filename}', [ShopController::class, 'getImage']);

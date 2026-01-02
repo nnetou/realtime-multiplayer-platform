@@ -4,10 +4,48 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
+use App\Models\User;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    public function register(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255|unique:users,name',
+            'email' => 'required|email|unique:users,email',
+            'nickname' => 'required|string|max:20|unique:users,nickname|regex:/^\S+$/',
+            'password' => 'required|string|min:3',
+            'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'description' => 'nullable|string|max:500',
+        ]);
+
+        $data = [
+            'name' => $request->name,
+            'email' => $request->email,
+            'nickname' => $request->nickname,
+            'password' => Hash::make($request->password),
+            'type' => 'P',
+            'coins_balance' => 10,
+            'description' => $request->description,
+        ];
+
+        $user = User::create($data);
+
+        if ($request->hasFile('photo')) {
+            $filename = time() . '_' . $user->id . '.' . $request->file('photo')->getClientOriginalExtension();
+            $request->file('photo')->storeAs('photos_avatars', $filename, 'public');
+            $user->update(['photo_avatar_filename' => $filename]);
+        }
+
+        return response()->json([
+            'message' => 'Account created! Welcome bonus awarded.',
+            'user' => $user->fresh(),
+        ], 201);
+    }
+
     public function login(Request $request)
     {
         $request->validate([

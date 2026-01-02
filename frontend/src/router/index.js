@@ -6,6 +6,7 @@ import SinglePlayerGamePage from '../pages/game/SinglePlayerGamePage.vue'
 import MultiPlayerLobbyPage from '../pages/game/MultiPlayerLobbyPage.vue'
 import MultiPlayerGamePage from '../pages/game/MultiPlayerGamePage.vue'
 import LoginPage from '../pages/login/LoginPage.vue'
+import RegisterPage from '../pages/login/RegisterPage.vue'
 import AboutPage from '../pages/about/AboutPage.vue'
 import HistoryPage from '../pages/history/HistoryPage.vue'
 import ScoreboardsPage from '../pages/scoreboards/ScoreboardsPage.vue'
@@ -75,6 +76,11 @@ const router = createRouter({
       path: '/login',
       name: 'login',
       component: LoginPage,
+    },
+    {
+      path: '/register',
+      name: 'register',
+      component: RegisterPage,
     },
     {
       path: '/profile',

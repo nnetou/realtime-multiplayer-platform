@@ -48,15 +48,11 @@
                   <div
                     class="mt-2 text-sm text-gray-600 italic flex items-center gap-2"
                   >
-                    <span
-                      class="w-2 h-2 rounded-full bg-green-500 inline-block"
-                    ></span>
-                    Online now
                   </div>
                 </div>
 
                 <Button
-                  @click="router.push({ name: 'profile-edit' })"
+                  @click="goToEditProfile"
                   class="bg-[#1e8449] hover:bg-[#145a32] text-white shadow-sm"
                 >
                   Edit Profile
@@ -302,4 +298,8 @@ const getAchievementTitle = (type) => {
   };
   return titles[type.toLowerCase()] || type;
 };
+
+const goToEditProfile = () => {
+  router.push({ name: 'profile-edit' })
+}
 </script>

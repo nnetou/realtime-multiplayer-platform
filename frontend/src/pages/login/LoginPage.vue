@@ -56,9 +56,13 @@
 
       <CardFooter class="flex justify-center text-sm">
         <span class="text-gray-600">Don't have an account? </span>
-        <a href="#" class="ml-1 font-medium text-[#007bff] hover:text-gray-800">
+        <button
+          type="button"
+          class="ml-1 font-medium text-[#007bff] hover:text-gray-800"
+          @click="router.push({ name: 'register' })"
+        >
           Sign up
-        </a>
+        </button>
       </CardFooter>
     </Card>
   </div>

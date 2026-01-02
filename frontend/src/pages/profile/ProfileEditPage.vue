@@ -15,6 +15,7 @@
                 :src="currentPhoto"
                 alt="Current Avatar"
                 class="w-32 h-32 rounded-full object-cover mx-auto border-4 border-[#1e8449]"
+                @error="handleImageError"
               />
               <div>
                 <label for="photo" class="block text-sm font-medium text-gray-700 mb-2">Change Avatar</label>
@@ -156,6 +157,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Button } from '@/components/ui/button'
 
 const apiBaseURL = inject('apiBaseURL')
+const serverBaseURL = inject('serverBaseURL')
 const router = useRouter()
 const authStore = useAuthStore()
 const apiStore = useAPIStore()
@@ -172,25 +174,55 @@ const photoFile = ref(null)
 const currentPhoto = ref('')
 const loading = ref(false)
 
+const getUserAvatar = () => {
+  const user = authStore.user
+  const photoName = user?.photo_avatar_filename
+
+  if (!photoName) {
+    return `https://ui-avatars.com/api/?name=${
+      user?.nickname || "User"
+    }&background=random&color=fff`
+  }
+
+  if (photoName.startsWith("http")) return photoName
+
+  return `${serverBaseURL}/storage/photos_avatars/${photoName}`
+}
+
+const handleImageError = (e) => {
+  e.target.src = `https://ui-avatars.com/api/?name=${
+    authStore.user?.nickname || "User"
+  }&background=random&color=fff`
+}
+
 onMounted(() => {
-  if (!authStore.currentUser) {
+  if (!authStore.user) {
     router.push({ name: 'login' })
     return
   }
 
   form.value = {
-    name: authStore.currentUser.name || '',
-    email: authStore.currentUser.email || '',
-    nickname: authStore.currentUser.nickname || '',
+    name: authStore.user.name || '',
+    email: authStore.user.email || '',
+    nickname: authStore.user.nickname || '',
     password: '',
-    description: authStore.currentUser.description || '',
+    description: authStore.user.description || '',
   }
 
-  currentPhoto.value = authStore.currentUser.photo_url || ''
+  currentPhoto.value = getUserAvatar()
 })
 
 const onFileChange = (event) => {
-  photoFile.value = event.target.files[0]
+  const file = event.target.files[0]
+  if (file) {
+    photoFile.value = file
+    // Mostrar preview da nova imagem
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      currentPhoto.value = e.target.result
+    }
+    reader.readAsDataURL(file)
+  }
 }
 
 const updateProfile = async () => {
@@ -226,10 +258,10 @@ const confirmDelete = async () => {
   }
 
   try {
-    const response = await fetch('http://localhost:8000/api/me/account/delete', {
+    const response = await fetch(`${serverBaseURL}/api/me/account/delete`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${sessionStorage.getItem('token')}`,
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
         'Content-Type': 'application/json',
       },
     })
