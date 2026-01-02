@@ -9,8 +9,8 @@ use App\Http\Controllers\CoinController;
 use App\Http\Controllers\ShopController;
 use App\Http\Controllers\UserStatisticsController;
 
-// 1. LOGIN
 Route::post('/login', [AuthController::class, 'login'])->name('login');
+Route::post('/register', [AuthController::class, 'register']);
 
 // 2. ROTAS PÚBLICAS
 Route::get('/image-proxy/{filename}', [ShopController::class, 'getImage']);
