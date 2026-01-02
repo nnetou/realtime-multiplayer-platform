@@ -128,7 +128,6 @@ const authStore = useAuthStore();
 const socketStore = useSocketStore();
 const socket = inject("socket");
 
-
 const cancelGame = (game) => {
   gameStore.cancelGame(socket, game);
 };
@@ -145,7 +144,7 @@ const startGame = (game) => {
 
 onMounted(() => {
   // 1. Ativa os ouvintes (fundamental!)
-  socketStore.handleGameEvents(); 
+  socketStore.handleGameEvents();
 
   // 2. Pede a lista atual
   socketStore.emitGetGames();
@@ -153,9 +152,11 @@ onMounted(() => {
 
 // Certifica-te que a função createNewGame está atualizada também (da resposta anterior):
 const createNewGame = () => {
-    const userData = { 
-        playerName: authStore.user?.nickname || authStore.user?.name || "Jogador" 
-    };
-    socketStore.emitCreateGame(userData);
+  console.log("[MultiPlayerLobbyPage] Creating new game...");
+  const userData = {
+    player1Id: authStore?.user.id,
+    playerName: authStore.user?.nickname || authStore.user?.name || "Jogador",
+  };
+  socketStore.emitCreateGame(userData);
 };
 </script>
