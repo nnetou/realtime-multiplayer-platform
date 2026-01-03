@@ -37,6 +37,7 @@ Route::get('/coin-transaction-types', [AdminController::class, 'getTransactionTy
 // *** ROTA CRÍTICA PARA O NODE.JS (MULTIPLAYER) ***
 Route::post('/game/settle', [MatchController::class, 'settleBet']);
 Route::patch('/matches/{id}', [MatchController::class, 'updateMatch']);
+Route::patch('/games/{id}/status', [GameController::class, 'updateGameStatus']);
 
 // Health Check
 Route::get('/status', function () {

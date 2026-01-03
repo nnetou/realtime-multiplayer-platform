@@ -71,6 +71,33 @@ class GameController extends Controller
         }
     }
 
+    public function updateGameStatus(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'status' => 'required|string|in:Pending,Playing,Ended,Interrupted',
+            'player2_user_id' => 'sometimes|integer|exists:users,id'
+        ]);
+
+        try {
+            $game = Game::findOrFail($id);
+            $game->status = $validated['status'];
+
+            if (isset($validated['player2_user_id'])) {
+                $game->player2_user_id = $validated['player2_user_id'];
+            }
+
+            $game->save();
+
+            return response()->json([
+                'message' => 'Game status atualizado com sucesso.',
+                'game' => $game
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Erro ao atualizar status do game: " . $e->getMessage());
+            return response()->json(['error' => 'Não foi possível atualizar o game.'], 500);
+        }
+    }
+
     //MUDAR A FUNÇÃO DE EMPATE, PORQUE O WINNER E LOSER PODEM SER NULL
     // public function store(Request $request)
     // {

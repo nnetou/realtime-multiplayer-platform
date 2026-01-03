@@ -36,7 +36,7 @@ export class BiscaEngine {
                 });
             });
         });
-        
+
         // Baralhar
         for (let i = deck.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
@@ -45,18 +45,19 @@ export class BiscaEngine {
         return deck;
     }
 
-    initializeNewGame() {
+    initializeNewGame(matchType = '3') {
         const deck = this.createDeck();
-        const playerHand = deck.splice(0, 3);
-        const botHand = deck.splice(0, 3);
-        const trunfo = deck[0]; 
-        
+        const cardsPerPlayer = (matchType === '9') ? 9 : 3;
+        const playerHand = deck.splice(0, cardsPerPlayer);
+        const botHand = deck.splice(0, cardsPerPlayer);
+        const trunfo = deck[0];
+
         return {
             deck,
             playerHand,
             botHand,
             trunfo,
-            trunfoSuit: trunfo.suit, 
+            trunfoSuit: trunfo.suit,
             tableCards: [],
             playerScore: 0,
             botScore: 0,
@@ -105,10 +106,10 @@ export class BiscaEngine {
 
 
     isMoveValid(cardPlayed, hand, cardOnTable) {
-      if (!cardOnTable) return true;
-      if (cardPlayed.suit === cardOnTable.suit) return true;
-      const hasSuit = hand.some(c => c.suit === cardOnTable.suit);
-      return !hasSuit;
+        if (!cardOnTable) return true;
+        if (cardPlayed.suit === cardOnTable.suit) return true;
+        const hasSuit = hand.some(c => c.suit === cardOnTable.suit);
+        return !hasSuit;
     }
 
     getBotMove(gameState) { return gameState.botHand[0]; }

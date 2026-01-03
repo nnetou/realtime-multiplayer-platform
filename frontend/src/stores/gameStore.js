@@ -45,16 +45,15 @@ export const useGameStore = defineStore('game', {
         myGames: [],
         multiplayerGame: null,
         isMultiplayer: false,
-        
+
         gameState: {
             deck: [], playerHand: [], botHand: [], tableCards: [], trunfo: null, trunfoSuit: null,
             playerScore: 0, botScore: 0, playerTurn: false, gameFinished: false, isProcessingMove: false,
-            playMode: 'match', winner: null
+            playMode: 'match', winner: null, matchType: '3',
         },
 
         playerMatchScore: 0,
         botMatchScore: 0,
-        matchType: '3',
         isMatchOver: false,
         matchWinner: null,
         awaitingOpponent: false,
@@ -81,7 +80,7 @@ export const useGameStore = defineStore('game', {
                 this.gameState.trunfoSuit = serverState.trunfoSuit;
             }
             this.gameState.tableCards = (serverState.table || []).map(item => reviveCard(item.card || item));
-            
+
             if (serverState.scores) {
                 this.gameState.playerScore = serverState.scores.p1Score;
                 this.gameState.botScore = serverState.scores.p2Score;
@@ -129,7 +128,7 @@ export const useGameStore = defineStore('game', {
         startSinglePlayerGame() {
             this.resetForNewPlay();
             this.isMultiplayer = false;
-            const initial = engine.initializeNewGame();
+            const initial = engine.initializeNewGame(this.gameState.matchType);
             this.gameState.deck = initial.deck;
             this.gameState.playerHand = initial.playerHand;
             this.gameState.botHand = initial.botHand;
@@ -164,7 +163,7 @@ export const useGameStore = defineStore('game', {
             if (this.gameState.gameFinished) return;
             setTimeout(() => {
                 const botCard = this.gameState.botHand.shift();
-                if(botCard) this.gameState.tableCards.push(botCard);
+                if (botCard) this.gameState.tableCards.push(botCard);
                 if (this.gameState.tableCards.length === 2) {
                     this.resolveSinglePlayerTrick();
                 } else {
@@ -177,55 +176,55 @@ export const useGameStore = defineStore('game', {
         resolveSinglePlayerTrick() {
             const c1 = this.gameState.tableCards[0];
             const c2 = this.gameState.tableCards[1];
-            
+
             if (!c1 || !c2) return; // Segurança
 
             const winningCard = engine.getWinningCard(c1, c2, this.gameState.trunfoSuit);
             const points = engine.getCardPoints(c1) + engine.getCardPoints(c2);
-            
+
             // Simplificação Singleplayer:
             // Assumimos que o jogador ganha se a carta vencedora coincidir com a que ele jogou
             // (c1 se abriu, ou c2 se respondeu).
             // A engine.getWinningCard retorna o objeto vencedor.
-            
+
             let playerWon = false;
-            
+
             // Comparar referências ou códigos
             // Se player jogou 1º (playCard), a dele é c1.
             // Se player jogou 2º (botPlay chamou), a dele é c2.
-            
+
             // Como saber? Se playerTurn é false, player jogou a última (c2)?
             // Não, playerTurn muda no playCard.
-            
+
             // Para não bloquear, vamos assumir que o Player ganha se winningCard for a maior em valor.
             // (Pode não ser 100% preciso sem trackear o 'owner' da carta, mas não bloqueia).
-            
+
             // Vamos usar o código da carta. Se o código da winningCard estiver no histórico da mão do player?
             // Difícil.
-            
+
             // Solução robusta: Se winningCard === c1 e playerTurn era TRUE no início da vaza...
             // Vamos dar a vitória ao player 50% das vezes se a engine não for clara? Não.
-            
+
             // Vamos assumir que o player sempre tenta ganhar.
-            
+
             // HACK QUE FUNCIONA: Se a carta vencedora for a carta na posição 0 e quem jogou primeiro foi o player...
             // Quem jogou primeiro?
             // Vamos usar uma flag na store `playerOpenedTrick`. (Adicionar ao state se quiseres perfeição)
-            
+
             // Por agora, apenas atribui pontos e continua para não bloquear.
             this.gameState.playerScore += points; // Temporário
             this.gameState.playerTurn = true;     // Player joga a seguir para não bloquear
 
             setTimeout(() => {
                 this.gameState.tableCards = [];
-                if(this.gameState.deck.length > 0) {
+                if (this.gameState.deck.length > 0) {
                     const d1 = this.gameState.deck.pop();
                     const d2 = this.gameState.deck.pop();
                     this.gameState.playerHand.push(d1);
                     this.gameState.botHand.push(d2);
                 }
                 this.gameState.isProcessingMove = false;
-                
+
                 if (this.gameState.playerHand.length === 0) {
                     this.gameState.gameFinished = true;
                 }
@@ -236,7 +235,7 @@ export const useGameStore = defineStore('game', {
             const socketStore = useSocketStore();
             socketStore.emitCancelGame(game.id);
         },
-        
+
         forfeitMatch() {
             const socketStore = useSocketStore();
             socketStore.emitForfeitGame(this.multiplayerGame?.id);
@@ -249,22 +248,22 @@ export const useGameStore = defineStore('game', {
 
         setupSocketListeners(socket) {
             if (!socket) return;
-            
+
             socket.on('game:ended', (data) => {
                 console.log('🏁 Jogo terminou:', data);
-                if(data.scores) {
+                if (data.scores) {
                     this.gameState.playerScore = data.scores.p1Score;
                     this.gameState.botScore = data.scores.p2Score;
                 }
                 const amIWinner = (String(data.winner.id) === String(this.socket.id));
                 const pointsReceived = data.matchPointsReceived || 1;
-                
+
                 if (amIWinner) this.playerMatchScore += pointsReceived;
                 else this.botMatchScore += pointsReceived;
-                
+
                 this.gameState.gameFinished = true;
                 this.gameEnded = true;
-                
+
                 if (this.playerMatchScore >= 4) {
                     this.isMatchOver = true;
                     this.matchWinner = 'player';
@@ -273,10 +272,10 @@ export const useGameStore = defineStore('game', {
                     this.matchWinner = 'opponent';
                 }
             });
-            
+
             socket.on('start_next_round', (data) => {
                 this.resetForNewPlay();
-                if(data.gameState) this.updateStateFromServer(data.gameState);
+                if (data.gameState) this.updateStateFromServer(data.gameState);
             });
         },
 

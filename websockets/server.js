@@ -5,20 +5,20 @@ const LARAVEL_API = "http://localhost:8000/api";
 const PORT = 3000;
 const games = [];
 
-const gameRoomState = {}; 
+const gameRoomState = {};
 
 const SUITS = ['hearts', 'diamonds', 'clubs', 'spades'];
-const RANKS = { 
-    '2': { value: 0, order: 1 }, 
-    '3': { value: 0, order: 2 }, 
-    '4': { value: 0, order: 3 }, 
-    '5': { value: 0, order: 4 }, 
-    '6': { value: 0, order: 5 }, 
-    '7': { value: 10, order: 10 }, 
-    'Q': { value: 2, order: 6 },   
-    'J': { value: 3, order: 7 },   
-    'K': { value: 4, order: 8 },   
-    'A': { value: 11, order: 9 }   
+const RANKS = {
+    '2': { value: 0, order: 1 },
+    '3': { value: 0, order: 2 },
+    '4': { value: 0, order: 3 },
+    '5': { value: 0, order: 4 },
+    '6': { value: 0, order: 5 },
+    '7': { value: 10, order: 10 },
+    'Q': { value: 2, order: 6 },
+    'J': { value: 3, order: 7 },
+    'K': { value: 4, order: 8 },
+    'A': { value: 11, order: 9 }
 };
 
 function createDeck() {
@@ -58,8 +58,8 @@ function getWinningCard(c1, c2, trunfoSuit) {
 
 function calculateMatchPoints(winnerScore, loserScore, reason) {
     if (reason === 'forfeit' || reason === 'disconnect') return 4;
-    if (winnerScore === 120) return 4; 
-    if (loserScore < 30) return 2;     
+    if (winnerScore === 120) return 4;
+    if (loserScore < 30) return 2;
     return 1;
 }
 
@@ -69,8 +69,9 @@ function initializeRoomState(gameId) {
 
 function prepareNextRound(game) {
     const fullDeck = createDeck();
-    const p1Hand = fullDeck.splice(0, 3);
-    const p2Hand = fullDeck.splice(0, 3);
+    const cardsPerPlayer = (game.gameType === '9') ? 9 : 3;
+    const p1Hand = fullDeck.splice(0, cardsPerPlayer);
+    const p2Hand = fullDeck.splice(0, cardsPerPlayer);
     const trunfo = fullDeck[0];
 
     game.state = {
@@ -97,7 +98,7 @@ async function processGameEnd(io, game, winnerSocketId, reason, pointsAwarded = 
         game.status = 'Ended';
         try {
             if (game.databaseId) await axios.patch(`${LARAVEL_API}/games/${game.databaseId}/status`, { status: 'Ended' });
-            
+
             if (winnerUserId && loserUserId && game.betAmount > 0) {
                 await axios.post(`${LARAVEL_API}/game/settle`, {
                     winner_id: winnerUserId,
@@ -116,7 +117,7 @@ async function processGameEnd(io, game, winnerSocketId, reason, pointsAwarded = 
     }
 
     io.to(game.id).emit("game:ended", {
-        winner: { id: winnerSocketId }, 
+        winner: { id: winnerSocketId },
         reason: reason,
         betAmount: game.betAmount,
         matchPointsReceived: pointsAwarded,
@@ -153,7 +154,7 @@ export function serverStart(port = PORT) {
                     }, { headers: { 'Authorization': `Bearer ${data.authToken}` } });
                     dbId = res.data.id;
                 }
-            } catch (error) { console.error("❌ Erro Laravel:", error.message); } 
+            } catch (error) { console.error("❌ Erro Laravel:", error.message); }
 
             const newGame = {
                 id: gameId, databaseId: dbId,
@@ -178,16 +179,24 @@ export function serverStart(port = PORT) {
 
                 try {
                     if (game.databaseId && data.authToken) {
-                        const endpoint = game.playMode === 'match' ? `/matches/${game.databaseId}` : `/games/${game.databaseId}/status`;
-                        await axios.patch(`${LARAVEL_API}${endpoint}`, {
-                            player2_user_id: data.userId, status: 'Playing'
-                        }, { headers: { 'Authorization': `Bearer ${data.authToken}` } });
+                        if (game.playMode === 'match') {
+                            // Match precisa de autenticação
+                            await axios.patch(`${LARAVEL_API}/matches/${game.databaseId}`, {
+                                player2_user_id: data.userId, status: 'Playing'
+                            }, { headers: { 'Authorization': `Bearer ${data.authToken}` } });
+                        } else {
+                            // Game não precisa de autenticação (rota pública)
+                            await axios.patch(`${LARAVEL_API}/games/${game.databaseId}/status`, {
+                                player2_user_id: data.userId, status: 'Playing'
+                            }, { headers: { 'Authorization': `Bearer ${data.authToken}` } });
+                        }
                     }
                 } catch (error) { console.error("❌ Erro Laravel:", error.message); }
 
                 const fullDeck = createDeck();
-                const p1Hand = fullDeck.splice(0, 3);
-                const p2Hand = fullDeck.splice(0, 3);
+                const cardsPerPlayer = (game.gameType === '9') ? 9 : 3;
+                const p1Hand = fullDeck.splice(0, cardsPerPlayer);
+                const p2Hand = fullDeck.splice(0, cardsPerPlayer);
                 const trunfo = fullDeck[0];
 
                 game.state = {
@@ -197,7 +206,7 @@ export function serverStart(port = PORT) {
                 };
 
                 socket.join(game.id);
-                
+
                 io.to(game.creatorId).emit("game:started", {
                     id: game.id, playMode: game.playMode, isMyTurn: true,
                     myHand: p1Hand, trunfo, deckCount: fullDeck.length, betAmount: game.betAmount
@@ -213,27 +222,27 @@ export function serverStart(port = PORT) {
         socket.on("cancel-game", async (data) => {
             const gameId = String(data.gameId);
             const gameIndex = games.findIndex(g => String(g.id) === gameId);
-            
+
             console.log(`🔍 Cancel request for ${gameId}, authToken: ${data.authToken ? 'present' : 'MISSING'}`);
-            
+
             if (gameIndex === -1) {
                 console.log(`⚠️ Tentativa de cancelar sala inexistente: ${gameId}`);
                 return;
             }
-            
+
             const game = games[gameIndex];
-            
+
             // Só o criador pode cancelar e apenas se ainda estiver Pending
             if (game.creatorId !== socket.id) {
                 console.log(`⚠️ Apenas o criador pode cancelar a sala`);
                 return;
             }
-            
+
             if (game.status !== 'Pending') {
                 console.log(`⚠️ Não é possível cancelar sala em estado ${game.status}`);
                 return;
             }
-            
+
             // Update status in database (usar databaseId e endpoint correto)
             try {
                 if (game.playMode === 'match' && game.databaseId) {
@@ -260,14 +269,14 @@ export function serverStart(port = PORT) {
             } catch (error) {
                 console.error(`❌ Erro ao atualizar status para 'Interrupted':`, error.response?.data || error.message);
             }
-            
+
             // Remover sala da lista
             games.splice(gameIndex, 1);
-            
+
             // Notificar todos os clientes que a sala foi cancelada
             io.emit("games", games.filter(g => g.status === 'Pending'));
             socket.emit("game-cancelled", { gameId: gameId });
-            
+
             console.log(`🗑️ [${gameId}] Sala cancelada pelo criador`);
         });
 
@@ -284,7 +293,7 @@ export function serverStart(port = PORT) {
 
                 const winningCard = getWinningCard(p1.card, p2.card, game.state.trunfoSuit);
                 const winnerId = (winningCard.code === p1.card.code) ? p1.player : p2.player;
-                
+
                 const v1 = RANKS[p1.card.rank.name]?.value || 0;
                 const v2 = RANKS[p2.card.rank.name]?.value || 0;
                 const points = v1 + v2;
@@ -295,17 +304,17 @@ export function serverStart(port = PORT) {
                 game.state.table = [];
 
                 setTimeout(() => {
-                    io.to(game.id).emit("trick-result", { 
-                        winnerId, pointsInTrick: points, 
-                        p1Score: game.state.p1Score, p2Score: game.state.p2Score, nextTurn: winnerId 
+                    io.to(game.id).emit("trick-result", {
+                        winnerId, pointsInTrick: points,
+                        p1Score: game.state.p1Score, p2Score: game.state.p2Score, nextTurn: winnerId
                     });
 
                     if (game.state.deck.length > 0) {
                         const c1 = game.state.deck.pop();
                         const c2 = game.state.deck.pop();
                         const loserId = (winnerId === game.creatorId) ? game.player2 : game.creatorId;
-                        if(c1) { io.to(winnerId).emit("deal-card", {card:c1, deckCount:game.state.deck.length}); io.to(loserId).emit("opponent-drew", {deckCount:game.state.deck.length}); }
-                        if(c2) { io.to(loserId).emit("deal-card", {card:c2, deckCount:game.state.deck.length}); io.to(winnerId).emit("opponent-drew", {deckCount:game.state.deck.length}); }
+                        if (c1) { io.to(winnerId).emit("deal-card", { card: c1, deckCount: game.state.deck.length }); io.to(loserId).emit("opponent-drew", { deckCount: game.state.deck.length }); }
+                        if (c2) { io.to(loserId).emit("deal-card", { card: c2, deckCount: game.state.deck.length }); io.to(winnerId).emit("opponent-drew", { deckCount: game.state.deck.length }); }
                     }
 
                     if ((game.state.p1Score + game.state.p2Score) >= 120) {
@@ -313,10 +322,10 @@ export function serverStart(port = PORT) {
                         const w = isP1Winner ? game.creatorId : game.player2;
                         const wScore = isP1Winner ? game.state.p1Score : game.state.p2Score;
                         const lScore = isP1Winner ? game.state.p2Score : game.state.p1Score;
-                        
+
                         const matchPoints = calculateMatchPoints(wScore, lScore, 'points');
                         console.log(`🎯 Fim: ${wScore}-${lScore} (Pts: ${matchPoints})`);
-                        
+
                         processGameEnd(io, game, w, 'points', matchPoints);
                     }
                 }, 1500);
@@ -344,8 +353,8 @@ export function serverStart(port = PORT) {
                 game.status = 'Playing';
                 gameRoomState[game.id].readyPlayers.clear();
 
-                io.to(game.creatorId).emit("start_next_round", { gameState: { myHand: game.state.p1Hand, trunfo: roundInfo.trunfo, deckCount: roundInfo.deckCount, myScore:0, opponentScore:0, isMyTurn:true } });
-                io.to(game.player2).emit("start_next_round", { gameState: { myHand: game.state.p2Hand, trunfo: roundInfo.trunfo, deckCount: roundInfo.deckCount, myScore:0, opponentScore:0, isMyTurn:false } });
+                io.to(game.creatorId).emit("start_next_round", { gameState: { myHand: game.state.p1Hand, trunfo: roundInfo.trunfo, deckCount: roundInfo.deckCount, myScore: 0, opponentScore: 0, isMyTurn: true } });
+                io.to(game.player2).emit("start_next_round", { gameState: { myHand: game.state.p2Hand, trunfo: roundInfo.trunfo, deckCount: roundInfo.deckCount, myScore: 0, opponentScore: 0, isMyTurn: false } });
             }
         });
 
