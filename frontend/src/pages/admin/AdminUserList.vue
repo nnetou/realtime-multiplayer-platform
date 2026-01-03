@@ -1,12 +1,8 @@
 <template>
-  <div class="min-h-screen bg-gray-100 p-4 md:p-8">
+  <div class="p-4 md:p-8">
     <div class="max-w-7xl mx-auto">
       <!-- Header -->
-      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-        <div>
-          <h1 class="text-4xl font-bold text-gray-900">User Management</h1>
-          <p class="text-gray-600 mt-2">Manage platform users and permissions</p>
-        </div>
+      <div class="flex justify-end mb-6">
         <Button
           @click="openCreateAdminModal"
           class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-6 rounded-lg"
@@ -159,7 +155,27 @@
               </td>
 
               <!-- Actions -->
-              <td class="px-6 py-4 space-x-2 flex">
+              <td class="px-6 py-4 space-x-2 flex flex-wrap gap-2">
+                <!-- View Transactions Button (Only for Players) -->
+                <button
+                  v-if="user.type !== 'A'"
+                  @click="viewUserTransactions(user.id, user.nickname)"
+                  title="View user transactions"
+                  class="px-3 py-2 rounded text-sm font-semibold bg-purple-100 hover:bg-purple-200 text-purple-800 transition"
+                >
+                  💰
+                </button>
+
+                <!-- View Games Button (Only for Players) -->
+                <button
+                  v-if="user.type !== 'A'"
+                  @click="viewUserGames(user.id, user.nickname)"
+                  title="View user games"
+                  class="px-3 py-2 rounded text-sm font-semibold bg-indigo-100 hover:bg-indigo-200 text-indigo-800 transition"
+                >
+                  🎮
+                </button>
+
                 <!-- Block/Unblock Button -->
                 <button
                   v-if="currentUser?.id !== user.id"
@@ -620,6 +636,18 @@ const submitCreateAdmin = async () => {
   } finally {
     creatingAdmin.value = false
   }
+}
+
+// Navigate to Transactions with user filter
+const viewUserTransactions = (userId, nickname) => {
+  const encodedNick = encodeURIComponent(nickname || '')
+  window.location.href = `/admin?tab=transactions&user_id=${userId}&user_nickname=${encodedNick}`
+}
+
+// Navigate to Games with user filter
+const viewUserGames = (userId, nickname) => {
+  const encodedNick = encodeURIComponent(nickname || '')
+  window.location.href = `/admin?tab=games&user_id=${userId}&user_nickname=${encodedNick}`
 }
 
 // Debounce timer for search

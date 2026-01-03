@@ -8,6 +8,9 @@ use Illuminate\Support\Facades\DB; // <--- OBRIGATÓRIO PARA A SOMA DOS EUROS
 use App\Models\User;
 use App\Models\MatchModel;
 use App\Models\CoinPurchase;
+use App\Models\CoinTransaction;
+use App\Models\CoinTransactionType;
+use App\Models\Game;
 
 class AdminController extends Controller
 {
@@ -105,6 +108,13 @@ class AdminController extends Controller
         return response()->json(['message' => 'Admin user created successfully', 'user' => $user], 201);
     }
 
+    // --- TIPOS DE TRANSAÇÃO ---
+    public function getTransactionTypes()
+    {
+        $types = CoinTransactionType::all();
+        return response()->json($types);
+    }
+
     // --- ESTATÍSTICAS GLOBAIS ---
     public function getGlobalStats(Request $request)
     {
@@ -188,5 +198,74 @@ class AdminController extends Controller
         }
 
         return response()->json($response);
+    }
+
+    // --- HISTÓRICO GLOBAL DE TRANSAÇÕES ---
+    public function listTransactions(Request $request)
+    {
+        $perPage = $request->query('per_page', 15);
+        $query = CoinTransaction::with(['user:id,nickname,email', 'type']);
+
+        // Filter by user
+        if ($userId = $request->query('user_id')) {
+            $query->where('user_id', $userId);
+        }
+
+        // Filter by search (nickname or email)
+        if ($search = $request->query('search')) {
+            $query->whereHas('user', function ($q) use ($search) {
+                $q->where('nickname', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%");
+            });
+        }
+
+        // Filter by transaction type ID
+        if ($typeId = $request->query('type_id')) {
+            $query->where('coin_transaction_type_id', $typeId);
+        }
+
+        $transactions = $query->orderBy('transaction_datetime', 'desc')->paginate($perPage);
+        return response()->json($transactions);
+    }
+
+    // --- HISTÓRICO GLOBAL DE JOGOS ---
+    public function listGames(Request $request)
+    {
+        $perPage = $request->query('per_page', 15);
+        $query = Game::with(['player1:id,nickname,email', 'player2:id,nickname,email', 'winner:id,nickname,email']);
+
+        // Filter by game type
+        if ($type = $request->query('type')) {
+            $query->where('type', $type);
+        }
+
+        // Filter by status
+        if ($status = $request->query('status')) {
+            $query->where('status', $status);
+        }
+
+        // Filter by user (player1 or player2)
+        if ($userId = $request->query('user_id')) {
+            $query->where(function ($q) use ($userId) {
+                $q->where('player1_user_id', $userId)
+                  ->orWhere('player2_user_id', $userId);
+            });
+        }
+
+        // Search by player nickname or email
+        if ($search = $request->query('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('player1', function ($p) use ($search) {
+                    $p->where('nickname', 'like', "%{$search}%")
+                      ->orWhere('email', 'like', "%{$search}%");
+                })->orWhereHas('player2', function ($p) use ($search) {
+                    $p->where('nickname', 'like', "%{$search}%")
+                      ->orWhere('email', 'like', "%{$search}%");
+                });
+            });
+        }
+
+        $games = $query->orderBy('began_at', 'desc')->paginate($perPage);
+        return response()->json($games);
     }
 }

@@ -180,9 +180,9 @@
             size="lg"
             variant="secondary"
             class="home-btn bg-purple-600 hover:bg-purple-700 text-white"
-            @click="router.push({ name: 'admin-users' })"
+            @click="router.push({ name: 'admin-dashboard' })"
           >
-            Manage Users
+            Admin Dashboard
           </Button>
         </CardContent>
       </Card>
