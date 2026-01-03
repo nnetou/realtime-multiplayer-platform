@@ -13,7 +13,7 @@ import ScoreboardsPage from '../pages/scoreboards/ScoreboardsPage.vue'
 import ProfilePage from '../pages/profile/ProfilePage.vue'
 import ProfileEditPage from '../pages/profile/ProfileEditPage.vue'
 import AdminHistoryPage from '../pages/history/AdminHistoryPage.vue'
-import AdminUserList from '../pages/admin/AdminUserList.vue'
+import AdminDashboard from '../pages/admin/AdminDashboard.vue'
 import ShopPage from '../pages/shop/ShopPage.vue'
 import CoinTransactionsPage from '../pages/profile/CoinTransactionsPage.vue'
 import StatisticsPage from '../pages/profile/StatisticsPage.vue'
@@ -63,7 +63,7 @@ const router = createRouter({
             },
             {
               path: 'quick',
-              name: 'mp-quick-game',
+              name: 'multiplayer-quick-game',
               component: MultiPlayerGamePage,
               meta: { playMode: 'single_game', requiresAuth: true }
             },
@@ -92,9 +92,9 @@ const router = createRouter({
       name: 'register',
       component: RegisterPage,
     },
-    { 
-      path: '/shop', 
-      name: 'shop', 
+    {
+      path: '/shop',
+      name: 'shop',
       component: ShopPage,
       meta: { requiresAuth: true }
     },
@@ -135,10 +135,23 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
-      path: '/admin/users',
-      name: 'admin-users',
-      component: AdminUserList,
+      path: '/admin',
+      name: 'admin-dashboard',
+      component: AdminDashboard,
       meta: { requiresAuth: true, requiresAdmin: true },
+    },
+    // Keep legacy routes for direct access (e.g., from user list buttons)
+    {
+      path: '/admin/users',
+      redirect: '/admin'
+    },
+    {
+      path: '/admin/transactions',
+      redirect: '/admin'
+    },
+    {
+      path: '/admin/games',
+      redirect: '/admin'
     }
   ],
 })

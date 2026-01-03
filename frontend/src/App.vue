@@ -64,40 +64,44 @@
               <li>
                 <RouterLink
                   :to="{ name: 'profile' }"
-                  class="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-slate-100 hover:text-accent-foreground"
+                  class="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-slate-100 hover:text-accent-foreground whitespace-nowrap"
                 >
-                  👤 O meu Perfil
+                  👤 My Profile
                 </RouterLink>
               </li>
-              <li>
+              <li v-if="authStore.type !== 'A'">
                 <RouterLink
                   :to="{ name: 'coin-transactions' }"
-                  class="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-slate-100 hover:text-accent-foreground"
+                  class="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-slate-100 hover:text-accent-foreground whitespace-nowrap"
                 >
-                  💰 Transações
+                  💰 Transactions
                 </RouterLink>
               </li>
               <li>
-                <RouterLink :to="{ name: 'statistics' }" class="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-slate-100 hover:text-accent-foreground text-gray-700 font-medium">
-                  📊 Estatísticas
+                <RouterLink :to="{ name: 'statistics' }" class="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-slate-100 hover:text-accent-foreground whitespace-nowrap">
+                  📊 Statistics
                 </RouterLink>
               </li>
-              <li>
+              <li v-if="authStore.type !== 'A'">
                 <RouterLink
-                  :to="
-                    authStore.type === 'A'
-                      ? { name: 'admin-history' }
-                      : { name: 'history' }
-                  "
-                  class="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-slate-100 hover:text-accent-foreground"
+                  :to="{ name: 'history' }"
+                  class="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-slate-100 hover:text-accent-foreground whitespace-nowrap"
                 >
-                  📜 Histórico Jogos
+                  📜 Game History
+                </RouterLink>
+              </li>
+              <li v-if="authStore.type === 'A'">
+                <RouterLink
+                  :to="{ name: 'admin-dashboard' }"
+                  class="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-slate-100 hover:text-accent-foreground whitespace-nowrap"
+                >
+                  🔧 Admin Dashboard
                 </RouterLink>
               </li>
               <li>
                 <RouterLink
                   :to="{ name: 'scoreboards' }"
-                  class="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-slate-100 hover:text-accent-foreground"
+                  class="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-slate-100 hover:text-accent-foreground whitespace-nowrap"
                 >
                   🏆 Leaderboard
                 </RouterLink>
@@ -105,9 +109,9 @@
               <li>
                 <RouterLink
                   :to="{ name: 'shop' }"
-                  class="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-slate-100 hover:text-accent-foreground font-bold text-[#1e8449]"
+                  class="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-slate-100 hover:text-accent-foreground whitespace-nowrap"
                 >
-                  🛒 Loja
+                  🛒 Shop
                 </RouterLink>
               </li>
             </ul>
