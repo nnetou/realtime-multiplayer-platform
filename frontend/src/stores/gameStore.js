@@ -474,29 +474,37 @@ export const useGameStore = defineStore('game', {
             socket.on('game_ended', (data) => {
                 console.log('🏁 Jogo terminou (servidor):', data);
                 
-                // data.winner: 'player' ou 'opponent'
-                // data.playerScore, data.opponentScore
+                // Atualizar pontos do jogo (caso não estejam sincronizados)
+                if (data.scores) {
+                    this.gameState.playerScore = data.scores.p1Score || 0;
+                    this.gameState.botScore = data.scores.p2Score || 0;
+                }
                 
-                if (data.winner === 'player') {
+                // Identificar vencedor comparando winnerId com socket.id
+                const amIWinner = (String(data.winnerId) === String(this.socket?.id));
+                
+                if (amIWinner) {
                     this.lastGameResult = 'VITORIA!';
                     this.playerMatchScore++;
-                } else if (data.winner === 'opponent') {
+                    console.log(`✅ Vitória! Marcas: ${this.playerMatchScore}-${this.botMatchScore}`);
+                } else {
                     this.lastGameResult = 'DERROTA...';
                     this.botMatchScore++;
-                } else {
-                    this.lastGameResult = 'EMPATE';
+                    console.log(`❌ Derrota! Marcas: ${this.playerMatchScore}-${this.botMatchScore}`);
                 }
                 
                 this.gameState.gameFinished = true;
                 this.gameEnded = true;
                 
-                // Verificar se partida acabou
+                // Verificar se partida acabou (4 marcas)
                 if (this.playerMatchScore >= 4) {
                     this.isMatchOver = true;
                     this.matchWinner = 'player';
+                    console.log('🏆 PARTIDA GANHA!');
                 } else if (this.botMatchScore >= 4) {
                     this.isMatchOver = true;
                     this.matchWinner = 'opponent';
+                    console.log('😔 PARTIDA PERDIDA!');
                 }
             });
         },

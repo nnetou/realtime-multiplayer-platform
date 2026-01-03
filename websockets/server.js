@@ -95,41 +95,64 @@ function prepareNextRound(game) {
 async function processGameEnd(io, game, winnerSocketId, reason) {
     if (!game || game.status === 'Ended') return;
 
-    game.status = 'Ended';
-
     const isCreatorWinner = (String(winnerSocketId) === String(game.creatorId));
     const winnerUserId = isCreatorWinner ? game.creatorUserId : game.player2UserId;
     const loserUserId = isCreatorWinner ? game.player2UserId : game.creatorUserId;
 
-    if (winnerUserId && loserUserId && game.betAmount > 0) {
-        try {
-            console.log(`💰 A liquidar aposta de ${game.betAmount}...`);
-            await axios.post(`${LARAVEL_API}/game/settle`, {
-                winner_id: winnerUserId,
-                loser_id: loserUserId,
-                amount: game.betAmount,
-                game_type: game.gameType,
-                p1_score: isCreatorWinner ? 120 : 0,
-                p2_score: isCreatorWinner ? 0 : 120,
-                reason: reason
-            });
-            console.log("✅ Saldo atualizado no Laravel.");
-        } catch (error) {
-            console.error("❌ ERRO NO LARAVEL:", error.message);
+    // Determinar scores finais
+    const p1Score = game.state?.p1Score || 0;
+    const p2Score = game.state?.p2Score || 0;
+
+    // Apenas liquidar aposta se for fim definitivo (forfeit, disconnect ou single_game)
+    const isDefinitiveEnd = (reason === 'forfeit' || reason === 'disconnect' || game.playMode === 'single_game');
+
+    if (isDefinitiveEnd) {
+        game.status = 'Ended';
+
+        if (winnerUserId && loserUserId && game.betAmount > 0) {
+            try {
+                console.log(`💰 A liquidar aposta de ${game.betAmount}...`);
+                await axios.post(`${LARAVEL_API}/game/settle`, {
+                    winner_id: winnerUserId,
+                    loser_id: loserUserId,
+                    amount: game.betAmount,
+                    game_type: game.gameType,
+                    p1_score: p1Score,
+                    p2_score: p2Score,
+                    reason: reason
+                });
+                console.log("✅ Saldo atualizado no Laravel.");
+            } catch (error) {
+                console.error("❌ ERRO NO LARAVEL:", error.message);
+            }
         }
+    } else {
+        // Modo Match e fim normal (por pontos) → Estado Intermédio
+        game.status = 'Intermission';
+        console.log(`🔄 [${game.id}] Partida em intermissão (aguardando próximo jogo)`);
     }
 
-    io.to(game.id).emit("game:ended", {
-        winner: { id: winnerSocketId },
+    // Emitir evento game_ended (COM UNDERSCORE) para ambos os jogadores
+    io.to(game.id).emit("game_ended", {
+        winnerId: winnerSocketId,
+        winner: isCreatorWinner ? 'player1' : 'player2',
         reason: reason,
         betAmount: game.betAmount,
+        scores: {
+            p1Score: p1Score,
+            p2Score: p2Score
+        },
         finalState: { gameFinished: true }
     });
 
-    setTimeout(() => {
-        const idx = games.indexOf(game);
-        if (idx !== -1) games.splice(idx, 1);
-    }, 5000);
+    // Apenas apagar sala se for fim definitivo
+    if (isDefinitiveEnd) {
+        setTimeout(() => {
+            const idx = games.indexOf(game);
+            if (idx !== -1) games.splice(idx, 1);
+            console.log(`🗑️ [${game.id}] Sala removida da memória`);
+        }, 5000);
+    }
 }
 
 export function serverStart(port = PORT) {
@@ -279,6 +302,12 @@ export function serverStart(port = PORT) {
                 return;
             }
 
+            // Aceitar jogos em 'Intermission' ou 'Playing'
+            if (game.status !== 'Intermission' && game.status !== 'Playing') {
+                console.error(`❌ [player_ready_next] Status inválido: ${game.status}`);
+                return;
+            }
+
             // Inicializar estado de sala se não existir
             initializeRoomState(gameId);
 
@@ -302,30 +331,33 @@ export function serverStart(port = PORT) {
                     return;
                 }
 
-                // 2. Limpar lista de prontos para a próxima vez
+                // 2. Voltar status para 'Playing'
+                game.status = 'Playing';
+
+                // 3. Limpar lista de prontos para a próxima vez
                 resetRoundReady(gameId);
 
-                // 3. Enviar novo estado para ambos os jogadores
+                // 4. Enviar novo estado para ambos os jogadores
                 io.to(game.creatorId).emit("start_next_round", {
                     gameState: {
-                        playerHand: game.state.p1Hand,
+                        myHand: game.state.p1Hand,
                         trunfo: roundInfo.trunfo,
                         deckCount: roundInfo.deckCount,
-                        playerScore: 0,
+                        myScore: 0,
                         opponentScore: 0,
-                        playerTurn: true,
+                        isMyTurn: true,
                         gameFinished: false
                     }
                 });
 
                 io.to(game.player2).emit("start_next_round", {
                     gameState: {
-                        playerHand: game.state.p2Hand,
+                        myHand: game.state.p2Hand,
                         trunfo: roundInfo.trunfo,
                         deckCount: roundInfo.deckCount,
-                        playerScore: 0,
+                        myScore: 0,
                         opponentScore: 0,
-                        playerTurn: false,
+                        isMyTurn: false,
                         gameFinished: false
                     }
                 });
