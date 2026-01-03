@@ -4,6 +4,7 @@
     
     <div class="tabs">
       <button 
+        v-if="!isAdmin"
         class="tab-button" 
         :class="{ active: activeTab === 'personal' }"
         @click="activeTab = 'personal'"
@@ -191,14 +192,18 @@
 </template>
 
 <script setup>
-import { ref, onMounted, inject, watch } from "vue";
+import { ref, onMounted, inject, watch, computed } from "vue";
+import { useAuthStore } from "@/stores/auth";
 import axios from "axios";
 
 const apiBaseURL = inject('apiBaseURL');
-const activeTab = ref('personal');
+const authStore = useAuthStore();
+const activeTab = ref('global');
 const globalFilter = ref('wins');
 const loading = ref(false);
 const error = ref(null);
+
+const isAdmin = computed(() => authStore.user?.type === "A");
 
 const personalStats = ref({
   total_matches: 0,
@@ -257,7 +262,13 @@ watch(activeTab, (newTab) => {
 });
 
 onMounted(() => {
-  loadPersonalStats();
+  if (isAdmin.value) {
+    activeTab.value = 'global';
+    loadGlobalStats();
+  } else {
+    activeTab.value = 'personal';
+    loadPersonalStats();
+  }
 });
 </script>
 

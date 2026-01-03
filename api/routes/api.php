@@ -31,6 +31,9 @@ Route::get('/shop', [ShopController::class, 'index']);
 // Scoreboards Públicos
 Route::get('/scoreboard/global', [MatchController::class, 'globalScoreboard']);
 
+// Transaction Types (for filtering)
+Route::get('/coin-transaction-types', [AdminController::class, 'getTransactionTypes']);
+
 // *** ROTA CRÍTICA PARA O NODE.JS (MULTIPLAYER) ***
 // Tem de ser pública porque o Node.js não envia token de utilizador
 Route::post('/game/settle', [MatchController::class, 'settleBet']);
@@ -92,6 +95,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Histórico Global
         Route::get('/admin/history', [MatchController::class, 'index']); // Reutiliza index (filtra tudo se for admin)
+        Route::get('/admin/transactions', [AdminController::class, 'listTransactions']); // Novo: Transações globais
+        Route::get('/admin/games', [AdminController::class, 'listGames']); // Novo: Jogos globais
 
         // Gestão de Users
         Route::get('/admin/users', [AdminController::class, 'listUsers']);
