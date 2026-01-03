@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\UserStatisticsController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\DB;
@@ -51,7 +52,7 @@ Route::get('/status', function () {
 |--------------------------------------------------------------------------
 */
 Route::middleware('auth:sanctum')->group(function () {
-    
+
     // User Profile
     Route::get('/users/me', function (Request $request) {
         return $request->user();
@@ -62,12 +63,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Jogo Singleplayer (Guarda o resultado enviado pelo cliente)
     Route::post('/matches', [MatchController::class, 'store']);
-    
+
     // Histórico e Stats
     Route::get('/history/matches', [MatchController::class, 'index']);
-    
+
     // Mapeamento das Estatísticas Pessoais (Usamos o MatchController que já tem a lógica)
-    Route::get('/me/statistics', [MatchController::class, 'personalScoreboard']);
+    //Route::get('/me/statistics', [MatchController::class, 'personalScoreboard']);
+    Route::get('/me/statistics', [UserStatisticsController::class, 'index']);
     Route::get('/scoreboard/personal', [MatchController::class, 'personalScoreboard']);
 
     // Moedas e Achievements
@@ -81,10 +83,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // --- ÁREA DE ADMINISTRAÇÃO ---
     Route::middleware('admin')->group(function () {
-        
+
         // Histórico Global
         Route::get('/admin/history', [MatchController::class, 'index']); // Reutiliza index (filtra tudo se for admin)
-        
+
         // Gestão de Users
         Route::get('/admin/users', [AdminController::class, 'listUsers']);
         Route::post('/admin/users', [AdminController::class, 'createAdmin']);
@@ -94,8 +96,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Estatísticas Globais
         Route::get('/statistics/global', [AdminController::class, 'getGlobalStats']);
-        
+
         // Ver stats de um user específico
-        Route::get('/admin/users/{id}/stats', [AdminController::class, 'getUserStats']); // Confirma se tens esta função no AdminController
+        Route::get('/admin/users/{id}/stats', [UserStatisticsController::class, 'index']); // Confirma se tens esta função no AdminController
     });
 });

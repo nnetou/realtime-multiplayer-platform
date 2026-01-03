@@ -21,8 +21,8 @@ class AdminController extends Controller
         if ($search = $request->query('search')) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('nickname', 'like', "%{$search}%");
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('nickname', 'like', "%{$search}%");
             });
         }
 
@@ -114,7 +114,7 @@ class AdminController extends Controller
         $totalUsers = User::where('type', 'P')->count();
         $totalGames = MatchModel::count(); // Ou Game::count() dependendo do seu Model
         $totalCoinsInCirculation = User::sum('coins_balance');
-        
+
         // --- A CORREÇÃO ESTÁ AQUI: SOMA DOS EUROS NA TABELA coin_purchases ---
         $totalEur = DB::table('coin_purchases')->sum('euros');
 
@@ -122,7 +122,7 @@ class AdminController extends Controller
             'total_users' => $totalUsers,
             'total_games' => $totalGames,
             'total_coins' => $totalCoinsInCirculation,
-            'total_eur'   => $totalEur, // <--- Enviado para o Frontend (Cartão Roxo)
+            'total_eur' => $totalEur, // <--- Enviado para o Frontend (Cartão Roxo)
         ];
 
         // 2. Dados Avançados (APENAS ADMIN)
@@ -139,9 +139,9 @@ class AdminController extends Controller
                         ->get();
 
                     // Agrupa por Mês (YYYY-MM)
-                    $purchases = $rawPurchases->groupBy(function($item) {
+                    $purchases = $rawPurchases->groupBy(function ($item) {
                         return $item->purchase_datetime ? $item->purchase_datetime->format('Y-m') : 'N/A';
-                    })->map(function($group, $key) {
+                    })->map(function ($group, $key) {
                         return [
                             'month' => $key,
                             'total' => $group->sum('euros'),
@@ -154,7 +154,7 @@ class AdminController extends Controller
                         ->where('purchase_datetime', '>=', now()->subMonths(12))
                         ->orderBy('purchase_datetime')
                         ->get();
-                    
+
                     // Lógica de agrupamento manual se necessário...
                     // (Mantive a lógica do Model acima pois parece que você o tem)
                 }
@@ -169,9 +169,9 @@ class AdminController extends Controller
                     ->get();
 
                 // Agrupa por Dia (YYYY-MM-DD)
-                $games = $rawGames->groupBy(function($item) {
+                $games = $rawGames->groupBy(function ($item) {
                     return $item->began_at ? $item->began_at->format('Y-m-d') : 'N/A';
-                })->map(function($group, $key) {
+                })->map(function ($group, $key) {
                     return [
                         'date' => $key,
                         'count' => $group->count()

@@ -37,11 +37,11 @@ class UserStatisticsController extends Controller
 
         try {
             // --- CÁLCULOS DE JOGO ---
-            
+
             // Total Jogos: Jogador 1 OU Jogador 2, e o jogo tem vencedor definido
             $totalMatches = MatchModel::where(function ($q) use ($userId) {
                 $q->where('player1_user_id', $userId)
-                  ->orWhere('player2_user_id', $userId);
+                    ->orWhere('player2_user_id', $userId);
             })->whereNotNull('winner_user_id')->count();
 
             // Vitórias
@@ -49,14 +49,14 @@ class UserStatisticsController extends Controller
 
             // Derrotas (Se existir a coluna loser_user_id, senão calcula pela diferença)
             $losses = MatchModel::where('loser_user_id', $userId)->count();
-            
+
             // Win Rate
             if ($totalMatches > 0) {
                 $winRate = round(($wins / $totalMatches) * 100, 1);
             }
 
             // --- CÁLCULOS FINANCEIROS ---
-            
+
             // Moedas Ganhas (Créditos que não sejam compras na loja)
             // Assumimos que compras têm type ou custom source específico. 
             // Aqui filtramos genericamente onde coins > 0.
@@ -73,9 +73,9 @@ class UserStatisticsController extends Controller
             // --- DADOS PARA O GRÁFICO (Últimos 7 dias) ---
             // Usa DATE() que funciona em MySQL
             $chartData = CoinTransaction::select(
-                    DB::raw('DATE(transaction_datetime) as date'),
-                    DB::raw('SUM(coins) as total')
-                )
+                DB::raw('DATE(transaction_datetime) as date'),
+                DB::raw('SUM(coins) as total')
+            )
                 ->where('user_id', $userId)
                 ->where('transaction_datetime', '>=', now()->subDays(7))
                 ->groupBy('date')
@@ -100,8 +100,8 @@ class UserStatisticsController extends Controller
             'wins' => $wins,
             'losses' => $losses,
             'win_rate' => $winRate,
-            'coins_won' => (int)$coinsWon,
-            'coins_lost' => abs((int)$coinsLost),
+            'coins_won' => (int) $coinsWon,
+            'coins_lost' => abs((int) $coinsLost),
             'chart_data' => $chartData
         ]);
     }
