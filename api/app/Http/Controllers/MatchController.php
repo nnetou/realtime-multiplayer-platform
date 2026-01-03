@@ -43,11 +43,6 @@ class MatchController extends Controller
 
     public function store(Request $request)
     {
-        // ... (MANTÉM A TUA FUNÇÃO STORE ORIGINAL AQUI - NÃO VOU REPETIR PARA POUPAR ESPAÇO) ...
-        // Se precisares dela completa, avisa, mas podes manter a que já tinhas para o Singleplayer.
-        // Vou assumir que o código que mandaste para o store() continua aqui igual.
-
-        // --- CÓDIGO DO STORE QUE MANDASTE ANTES ---
         $validated = $request->validate([
             'player_score' => 'required|integer',
             'opponent_score' => 'required|integer',
@@ -235,6 +230,7 @@ class MatchController extends Controller
         $won = MatchModel::where('winner_user_id', $user->id)->count();
 
         return response()->json([
+            'user_id' => $user->id,
             'total_matches' => $total,
             'won_matches' => $won,
             'lost_matches' => max(0, $total - $won),
@@ -247,33 +243,56 @@ class MatchController extends Controller
 
     public function globalScoreboard(Request $request)
     {
+        $filter = $request->query('filter', 'wins');
+        $perPage = $request->query('per_page', 10);
         $page = $request->query('page', 1);
-        $perPage = 10;
 
-        $mostWins = User::where('type', 'P')
-            ->withCount('matchesWon')
-            ->withMax('matchesWon as last_win_date', 'ended_at')
-            ->orderByDesc('matches_won_count')
-            ->orderByDesc('last_win_date')
-            ->paginate($perPage, ['*'], 'page', $page);
+        // Configurar a query base
+        $query = User::where('type', 'P');
 
-        $mostCoins = User::where('type', 'P')
-            ->orderByDesc('coins_balance')
-            ->orderByDesc('updated_at')
-            ->paginate($perPage, ['*'], 'page', $page);
+        if ($filter === 'wins') {
+            $query = $query->withCount('matchesWon')
+                ->orderByDesc('matches_won_count')
+                ->orderByDesc('created_at');
+        } 
+        elseif ($filter === 'coins') {
+            $query = $query->orderByDesc('coins_balance')
+                ->orderByDesc('created_at');
+        } 
+        elseif ($filter === 'achievements') {
+            $query = $query->withCount('achievements as achievements_count')
+                ->orderByDesc('achievements_count')
+                ->orderByDesc('created_at');
+        } 
+        else {
+            // Default: wins
+            $query = $query->withCount('matchesWon')
+                ->orderByDesc('matches_won_count')
+                ->orderByDesc('created_at');
+        }
 
-        $mostAchievements = User::where('type', 'P')
-            ->withCount('achievements as achievements_count')
-            ->has('achievements')
-            ->orderByDesc('achievements_count')
-            ->orderByDesc('updated_at')
-            ->paginate($perPage, ['*'], 'page', $page);
+        // Usar paginate() igual ao AdminController
+        $data = $query->paginate($perPage, ['*'], 'page', $page);
 
-        return response()->json([
-            'most_wins' => $mostWins,
-            'most_coins' => $mostCoins,
-            'most_achievements' => $mostAchievements,
-        ]);
+        // Transformar os dados para incluir informações específicas do filtro
+        $transformedData = $data->getCollection()->map(function ($user) use ($filter) {
+            $userData = [
+                'id' => $user->id,
+                'name' => $user->name,
+                'nickname' => $user->nickname,
+                'email' => $user->email,
+                'coins_balance' => $user->coins_balance,
+                'matches_won_count' => $user->matches_won_count ?? 0,
+                'achievements_count' => $user->achievements_count ?? 0,
+            ];
+
+            return $userData;
+        });
+
+        // Substituir a coleção transformada
+        $data->setCollection($transformedData);
+
+        return response()->json($data);
     }
 
     public function getUserRank(Request $request)
@@ -282,18 +301,50 @@ class MatchController extends Controller
         $userId = $request->query('user_id');
 
         if ($category === 'wins') {
-            $rank = User::where('type', 'P')
+            // Obter todos os usuários ordenados por vitórias
+            $users = User::where('type', 'P')
                 ->withCount('matchesWon')
-                ->withMax('matchesWon as last_win_date', 'ended_at')
                 ->orderByDesc('matches_won_count')
-                ->orderByDesc('last_win_date')
-                ->pluck('id')
-                ->search($userId) + 1;
+                ->orderByDesc('created_at')
+                ->get();
 
-            return response()->json(['rank' => $rank]);
+            // Encontrar a posição do usuário
+            $rank = $users->search(function ($user) use ($userId) {
+                return $user->id == $userId;
+            });
+
+            return response()->json(['rank' => $rank !== false ? $rank + 1 : 0]);
+        } 
+        elseif ($category === 'coins') {
+            // Obter todos os usuários ordenados por moedas
+            $users = User::where('type', 'P')
+                ->orderByDesc('coins_balance')
+                ->orderByDesc('created_at')
+                ->get();
+
+            // Encontrar a posição do usuário
+            $rank = $users->search(function ($user) use ($userId) {
+                return $user->id == $userId;
+            });
+
+            return response()->json(['rank' => $rank !== false ? $rank + 1 : 0]);
+        } 
+        elseif ($category === 'achievements') {
+            // Obter todos os usuários ordenados por achievements
+            $users = User::where('type', 'P')
+                ->withCount('achievements as achievements_count')
+                ->orderByDesc('achievements_count')
+                ->orderByDesc('created_at')
+                ->get();
+
+            // Encontrar a posição do usuário
+            $rank = $users->search(function ($user) use ($userId) {
+                return $user->id == $userId;
+            });
+
+            return response()->json(['rank' => $rank !== false ? $rank + 1 : 0]);
         }
 
-        // For other categories, return 0 or implement if needed
         return response()->json(['rank' => 0]);
     }
 }

@@ -12,7 +12,6 @@ use App\Http\Controllers\CoinController;
 use App\Http\Controllers\ShopController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\GameController;
-// use App\Http\Controllers\UserStatisticsController; // Comenta isto se não tiveres o ficheiro
 
 /*
 |--------------------------------------------------------------------------
@@ -30,12 +29,12 @@ Route::get('/shop', [ShopController::class, 'index']);
 
 // Scoreboards Públicos
 Route::get('/scoreboard/global', [MatchController::class, 'globalScoreboard']);
+Route::get('/scoreboard/user-rank', [MatchController::class, 'getUserRank']);
 
 // Transaction Types (for filtering)
 Route::get('/coin-transaction-types', [AdminController::class, 'getTransactionTypes']);
 
 // *** ROTA CRÍTICA PARA O NODE.JS (MULTIPLAYER) ***
-// Tem de ser pública porque o Node.js não envia token de utilizador
 Route::post('/game/settle', [MatchController::class, 'settleBet']);
 
 // Health Check
@@ -65,19 +64,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/users/me', [AuthController::class, 'deleteAccount']);
     Route::post('/logout', [AuthController::class, 'logout']);
 
-    // Jogo MultiPlayer (Guarda o resultado enviado pelo cliente)
-    //Game (Match null)
+    // Jogo MultiPlayer
     Route::get('/games/{id}', [GameController::class, 'show']);
-    Route::post('/games/create-multiplayer', [GameController::class, 'createMultiplayerGame']); // <-- ADICIONAR ESTA LINHA
+    Route::post('/games/create-multiplayer', [GameController::class, 'createMultiplayerGame']);
     Route::post('/game/settle', [GameController::class, 'settleBet']);
-
-
 
     // Histórico e Stats
     Route::get('/history/matches', [MatchController::class, 'index']);
 
-    // Mapeamento das Estatísticas Pessoais (Usamos o MatchController que já tem a lógica)
-    //Route::get('/me/statistics', [MatchController::class, 'personalScoreboard']);
+    // Estatísticas
     Route::get('/me/statistics', [UserStatisticsController::class, 'index']);
     Route::get('/scoreboard/personal', [MatchController::class, 'personalScoreboard']);
 
@@ -95,9 +90,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('admin')->group(function () {
 
         // Histórico Global
-        Route::get('/admin/history', [MatchController::class, 'index']); // Reutiliza index (filtra tudo se for admin)
-        Route::get('/admin/transactions', [AdminController::class, 'listTransactions']); // Novo: Transações globais
-        Route::get('/admin/games', [AdminController::class, 'listGames']); // Novo: Jogos globais
+        Route::get('/admin/history', [MatchController::class, 'index']);
+        Route::get('/admin/transactions', [AdminController::class, 'listTransactions']);
+        Route::get('/admin/games', [AdminController::class, 'listGames']);
 
         // Gestão de Users
         Route::get('/admin/users', [AdminController::class, 'listUsers']);
@@ -110,6 +105,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/statistics/global', [AdminController::class, 'getGlobalStats']);
 
         // Ver stats de um user específico
-        Route::get('/admin/users/{id}/stats', [UserStatisticsController::class, 'index']); // Confirma se tens esta função no AdminController
+        Route::get('/admin/users/{id}/stats', [UserStatisticsController::class, 'index']);
     });
 });

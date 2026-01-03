@@ -91,21 +91,21 @@
           <button 
             class="filter-btn" 
             :class="{ active: globalFilter === 'wins' }"
-            @click="globalFilter = 'wins'"
+            @click="changeFilter('wins')"
           >
             Most Wins
           </button>
           <button 
             class="filter-btn" 
             :class="{ active: globalFilter === 'coins' }"
-            @click="globalFilter = 'coins'"
+            @click="changeFilter('coins')"
           >
             Most Coins
           </button>
           <button 
             class="filter-btn" 
             :class="{ active: globalFilter === 'achievements' }"
-            @click="globalFilter = 'achievements'"
+            @click="changeFilter('achievements')"
           >
             Most Achievements
           </button>
@@ -113,76 +113,190 @@
 
         <!-- LEADERBOARD POR VITÓRIAS -->
         <div v-if="globalFilter === 'wins'" class="leaderboard">
-          <h3 class="leaderboard-title">Top 10 Players by Wins</h3>
+          <h3 class="leaderboard-title">Top Players by Wins</h3>
+          <div class="user-rank-section">
+            <p class="user-rank">Your rank: {{ userRanks.wins || 'Not ranked' }}</p>
+            <button 
+              v-if="userRanks.wins && userRanks.wins !== 'Not ranked' && userRanks.wins !== 'N/A' && userRanks.wins !== 0" 
+              class="go-to-rank-btn"
+              @click="goToUserRank"
+              :disabled="isLoadingUserPage"
+            >
+              <span v-if="isLoadingUserPage">Loading...</span>
+              <span v-else>Go to my rank</span>
+            </button>
+          </div>
           <div class="leaderboard-list">
             <div 
-              v-for="(player, index) in globalStats.most_wins" 
+              v-for="(player, index) in globalStats.data" 
               :key="player.id"
               class="leaderboard-item"
-              :class="{ 'first': index === 0, 'second': index === 1, 'third': index === 2 }"
+              :class="{ 
+                'first': (globalStats.current_page - 1) * globalStats.per_page + index === 0, 
+                'second': (globalStats.current_page - 1) * globalStats.per_page + index === 1, 
+                'third': (globalStats.current_page - 1) * globalStats.per_page + index === 2,
+                'highlight-user': player.id === personalStats.user_id && userHighlighted 
+              }"
             >
-              <div class="rank">{{ index + 1 }}</div>
+              <div class="rank">{{ (globalStats.current_page - 1) * globalStats.per_page + index + 1 }}</div>
               <div class="player-info">
-                <div class="player-name">{{ player.nickname || player.name }}</div>
+                <div class="player-name">
+                  {{ player.nickname || player.name }}
+                  <span v-if="player.id === personalStats.user_id" class="you-badge">(You)</span>
+                </div>
                 <div class="player-stats">{{ player.matches_won_count || 0 }} wins</div>
               </div>
               <div class="trophy">
-                <span v-if="index === 0">🥇</span>
-                <span v-else-if="index === 1">🥈</span>
-                <span v-else-if="index === 2">🥉</span>
-                <span v-else>{{ index + 1 }}</span>
+                <span v-if="(globalStats.current_page - 1) * globalStats.per_page + index === 0">🥇</span>
+                <span v-else-if="(globalStats.current_page - 1) * globalStats.per_page + index === 1">🥈</span>
+                <span v-else-if="(globalStats.current_page - 1) * globalStats.per_page + index === 2">🥉</span>
+                <span v-else>{{ (globalStats.current_page - 1) * globalStats.per_page + index + 1 }}</span>
               </div>
             </div>
+          </div>
+          <!-- PAGINATION -->
+          <div class="pagination">
+            <button 
+              class="page-btn" 
+              :disabled="globalStats.current_page <= 1"
+              @click="changePage(globalStats.current_page - 1)"
+            >
+              Previous
+            </button>
+            <span class="page-info">Page {{ globalStats.current_page }} of {{ globalStats.last_page }}</span>
+            <button 
+              class="page-btn" 
+              :disabled="globalStats.current_page >= globalStats.last_page"
+              @click="changePage(globalStats.current_page + 1)"
+            >
+              Next
+            </button>
           </div>
         </div>
 
         <!-- LEADERBOARD POR MOEDAS -->
         <div v-if="globalFilter === 'coins'" class="leaderboard">
-          <h3 class="leaderboard-title">Top 10 Players by Coins</h3>
+          <h3 class="leaderboard-title">Top Players by Coins</h3>
+          <div class="user-rank-section">
+            <p class="user-rank">Your rank: {{ userRanks.coins || 'Not ranked' }}</p>
+            <button 
+              v-if="userRanks.coins && userRanks.coins !== 'Not ranked' && userRanks.coins !== 'N/A' && userRanks.coins !== 0" 
+              class="go-to-rank-btn"
+              @click="goToUserRank"
+              :disabled="isLoadingUserPage"
+            >
+              <span v-if="isLoadingUserPage">Loading...</span>
+              <span v-else>Go to my rank</span>
+            </button>
+          </div>
           <div class="leaderboard-list">
             <div 
-              v-for="(player, index) in globalStats.most_coins" 
+              v-for="(player, index) in globalStats.data" 
               :key="player.id"
               class="leaderboard-item"
-              :class="{ 'first': index === 0, 'second': index === 1, 'third': index === 2 }"
+              :class="{ 
+                'first': (globalStats.current_page - 1) * globalStats.per_page + index === 0, 
+                'second': (globalStats.current_page - 1) * globalStats.per_page + index === 1, 
+                'third': (globalStats.current_page - 1) * globalStats.per_page + index === 2,
+                'highlight-user': player.id === personalStats.user_id && userHighlighted 
+              }"
             >
-              <div class="rank">{{ index + 1 }}</div>
+              <div class="rank">{{ (globalStats.current_page - 1) * globalStats.per_page + index + 1 }}</div>
               <div class="player-info">
-                <div class="player-name">{{ player.nickname || player.name }}</div>
+                <div class="player-name">
+                  {{ player.nickname || player.name }}
+                  <span v-if="player.id === personalStats.user_id" class="you-badge">(You)</span>
+                </div>
                 <div class="player-stats">{{ player.coins_balance || 0 }} coins</div>
               </div>
               <div class="trophy">
-                <span v-if="index === 0">💰</span>
-                <span v-else-if="index === 1">💵</span>
-                <span v-else-if="index === 2">💸</span>
+                <span v-if="(globalStats.current_page - 1) * globalStats.per_page + index === 0">💰</span>
+                <span v-else-if="(globalStats.current_page - 1) * globalStats.per_page + index === 1">💵</span>
+                <span v-else-if="(globalStats.current_page - 1) * globalStats.per_page + index === 2">💸</span>
                 <span v-else>🪙</span>
               </div>
             </div>
+          </div>
+          <!-- PAGINATION -->
+          <div class="pagination">
+            <button 
+              class="page-btn" 
+              :disabled="globalStats.current_page <= 1"
+              @click="changePage(globalStats.current_page - 1)"
+            >
+              Previous
+            </button>
+            <span class="page-info">Page {{ globalStats.current_page }} of {{ globalStats.last_page }}</span>
+            <button 
+              class="page-btn" 
+              :disabled="globalStats.current_page >= globalStats.last_page"
+              @click="changePage(globalStats.current_page + 1)"
+            >
+              Next
+            </button>
           </div>
         </div>
 
         <!-- LEADERBOARD POR ACHIEVEMENTS -->
         <div v-if="globalFilter === 'achievements'" class="leaderboard">
-          <h3 class="leaderboard-title">Top 10 Players by Achievements</h3>
+          <h3 class="leaderboard-title">Top Players by Achievements</h3>
+          <div class="user-rank-section">
+            <p class="user-rank">Your rank: {{ userRanks.achievements || 'Not ranked' }}</p>
+            <button 
+              v-if="userRanks.achievements && userRanks.achievements !== 'Not ranked' && userRanks.achievements !== 'N/A' && userRanks.achievements !== 0" 
+              class="go-to-rank-btn"
+              @click="goToUserRank"
+              :disabled="isLoadingUserPage"
+            >
+              <span v-if="isLoadingUserPage">Loading...</span>
+              <span v-else>Go to my rank</span>
+            </button>
+          </div>
           <div class="leaderboard-list">
             <div 
-              v-for="(player, index) in globalStats.most_achievements" 
+              v-for="(player, index) in globalStats.data" 
               :key="player.id"
               class="leaderboard-item"
-              :class="{ 'first': index === 0, 'second': index === 1, 'third': index === 2 }"
+              :class="{ 
+                'first': (globalStats.current_page - 1) * globalStats.per_page + index === 0, 
+                'second': (globalStats.current_page - 1) * globalStats.per_page + index === 1, 
+                'third': (globalStats.current_page - 1) * globalStats.per_page + index === 2,
+                'highlight-user': player.id === personalStats.user_id && userHighlighted 
+              }"
             >
-              <div class="rank">{{ index + 1 }}</div>
+              <div class="rank">{{ (globalStats.current_page - 1) * globalStats.per_page + index + 1 }}</div>
               <div class="player-info">
-                <div class="player-name">{{ player.nickname || player.name }}</div>
+                <div class="player-name">
+                  {{ player.nickname || player.name }}
+                  <span v-if="player.id === personalStats.user_id" class="you-badge">(You)</span>
+                </div>
                 <div class="player-stats">{{ player.achievements_count || 0 }} achievements</div>
               </div>
               <div class="trophy">
-                <span v-if="index === 0">🏆</span>
-                <span v-else-if="index === 1">🎖️</span>
-                <span v-else-if="index === 2">🎗️</span>
+                <span v-if="(globalStats.current_page - 1) * globalStats.per_page + index === 0">🏆</span>
+                <span v-else-if="(globalStats.current_page - 1) * globalStats.per_page + index === 1">🎖️</span>
+                <span v-else-if="(globalStats.current_page - 1) * globalStats.per_page + index === 2">🎗️</span>
                 <span v-else>⭐</span>
               </div>
             </div>
+          </div>
+          <!-- PAGINATION -->
+          <div class="pagination">
+            <button 
+              class="page-btn" 
+              :disabled="globalStats.current_page <= 1"
+              @click="changePage(globalStats.current_page - 1)"
+            >
+              Previous
+            </button>
+            <span class="page-info">Page {{ globalStats.current_page }} of {{ globalStats.last_page }}</span>
+            <button 
+              class="page-btn" 
+              :disabled="globalStats.current_page >= globalStats.last_page"
+              @click="changePage(globalStats.current_page + 1)"
+            >
+              Next
+            </button>
           </div>
         </div>
       </div>
@@ -191,7 +305,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, inject, watch } from "vue";
+import { ref, onMounted, inject, watch, nextTick } from "vue";
 import axios from "axios";
 
 const apiBaseURL = inject('apiBaseURL');
@@ -199,8 +313,11 @@ const activeTab = ref('personal');
 const globalFilter = ref('wins');
 const loading = ref(false);
 const error = ref(null);
+const isLoadingUserPage = ref(false);
+const userHighlighted = ref(false);
 
 const personalStats = ref({
+  user_id: null,
   total_matches: 0,
   won_matches: 0,
   lost_matches: 0,
@@ -211,10 +328,20 @@ const personalStats = ref({
 });
 
 const globalStats = ref({
-  most_wins: [],
-  most_coins: [],
-  most_achievements: []
+  data: [],
+  current_page: 1,
+  last_page: 1,
+  per_page: 10,
+  total: 0
 });
+
+const userRanks = ref({
+  wins: 0,
+  coins: 0,
+  achievements: 0
+});
+
+const currentPage = ref(1);
 
 const loadPersonalStats = async () => {
   loading.value = true;
@@ -223,37 +350,156 @@ const loadPersonalStats = async () => {
   try {
     const response = await axios.get(`${apiBaseURL}/scoreboard/personal`);
     personalStats.value = response.data;
-    console.log('Personal stats loaded:', personalStats.value);
+    
+    // Carregar ranks do usuário
+    await loadUserRanks();
   } catch (err) {
     console.error('Error loading personal stats:', err);
-    error.value = err.response?.data?.message || "Erro ao carregar estatísticas pessoais";
+    error.value = 'Failed to load personal statistics';
   } finally {
     loading.value = false;
   }
 };
 
-const loadGlobalStats = async () => {
+const loadGlobalStats = async (page = 1) => {
   loading.value = true;
   error.value = null;
+  userHighlighted.value = false; // Reset highlight quando muda página
   
   try {
-    const response = await axios.get(`${apiBaseURL}/scoreboard/global`);
-    globalStats.value = response.data;
-    console.log('Global stats loaded:', globalStats.value);
+    const response = await axios.get(`${apiBaseURL}/scoreboard/global`, {
+      params: {
+        filter: globalFilter.value,
+        page: page,
+        per_page: globalStats.value.per_page
+      }
+    });
+    
+    globalStats.value = {
+      data: response.data.data || [],
+      current_page: response.data.current_page || 1,
+      last_page: response.data.last_page || 1,
+      per_page: response.data.per_page || 10,
+      total: response.data.total || 0
+    };
+    
+    currentPage.value = page;
   } catch (err) {
     console.error('Error loading global stats:', err);
-    error.value = err.response?.data?.message || "Erro ao carregar estatísticas globais";
+    error.value = 'Failed to load global leaderboard';
   } finally {
     loading.value = false;
   }
+};
+
+const loadUserRanks = async () => {
+  try {
+    const [winsRes, coinsRes, achievementsRes] = await Promise.all([
+      axios.get(`${apiBaseURL}/scoreboard/user-rank`, { 
+        params: { 
+          category: 'wins', 
+          user_id: personalStats.value.user_id 
+        } 
+      }),
+      axios.get(`${apiBaseURL}/scoreboard/user-rank`, { 
+        params: { 
+          category: 'coins', 
+          user_id: personalStats.value.user_id 
+        } 
+      }),
+      axios.get(`${apiBaseURL}/scoreboard/user-rank`, { 
+        params: { 
+          category: 'achievements', 
+          user_id: personalStats.value.user_id 
+        } 
+      })
+    ]);
+    
+    userRanks.value.wins = winsRes.data.rank || 'Not ranked';
+    userRanks.value.coins = coinsRes.data.rank || 'Not ranked';
+    userRanks.value.achievements = achievementsRes.data.rank || 'Not ranked';
+  } catch (err) {
+    console.error('Error loading user ranks:', err);
+    userRanks.value = { wins: 'N/A', coins: 'N/A', achievements: 'N/A' };
+  }
+};
+
+const changeFilter = (filter) => {
+  globalFilter.value = filter;
+  currentPage.value = 1;
+  loadGlobalStats(1);
+};
+
+const changePage = (page) => {
+  if (page < 1 || page > globalStats.value.last_page) return;
+  loadGlobalStats(page);
+};
+
+const goToUserRank = async () => {
+  if (!personalStats.value.user_id) return;
+  
+  isLoadingUserPage.value = true;
+  userHighlighted.value = false;
+  
+  try {
+    // Obter o rank atual do usuário
+    const currentRank = userRanks.value[globalFilter.value];
+    
+    if (!currentRank || currentRank === 'Not ranked' || currentRank === 'N/A' || currentRank === 0) {
+      return;
+    }
+    
+    // Calcular em qual página o usuário está
+    const userPage = Math.ceil(currentRank / globalStats.value.per_page);
+    
+    // Se já estiver na página correta, apenas destaca
+    if (userPage === globalStats.value.current_page) {
+      highlightUserRow();
+    } else {
+      // Ir para a página do usuário
+      await loadGlobalStats(userPage);
+      
+      // Aguardar renderização e destacar
+      await nextTick();
+      highlightUserRow();
+    }
+    
+  } catch (err) {
+    console.error('Error going to user rank:', err);
+    error.value = 'Failed to navigate to your rank';
+  } finally {
+    isLoadingUserPage.value = false;
+  }
+};
+
+const highlightUserRow = () => {
+  userHighlighted.value = true;
+  
+  // Scroll para a linha do usuário se estiver visível
+  setTimeout(() => {
+    const userElement = document.querySelector('.highlight-user');
+    if (userElement) {
+      userElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      
+      // Remover highlight após 5 segundos
+      setTimeout(() => {
+        userHighlighted.value = false;
+      }, 5000);
+    }
+  }, 100);
 };
 
 watch(activeTab, (newTab) => {
   if (newTab === 'personal') {
     loadPersonalStats();
   } else if (newTab === 'global') {
-    loadGlobalStats();
+    loadGlobalStats(currentPage.value);
   }
+});
+
+watch(globalFilter, () => {
+  currentPage.value = 1;
+  loadGlobalStats(1);
 });
 
 onMounted(() => {
@@ -536,9 +782,51 @@ onMounted(() => {
 
 .leaderboard-title {
   font-size: 20px;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
   color: #2c3e50;
   text-align: center;
+}
+
+.user-rank-section {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 15px;
+  flex-wrap: wrap;
+}
+
+.user-rank {
+  font-size: 16px;
+  color: #007bff;
+  font-weight: bold;
+  margin: 0;
+}
+
+.go-to-rank-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #4caf50, #2e7d32);
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+  font-size: 14px;
+}
+
+.go-to-rank-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #43a047, #1b5e20);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+}
+
+.go-to-rank-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .leaderboard-list {
@@ -553,7 +841,8 @@ onMounted(() => {
   align-items: center;
   padding: 15px 20px;
   border-bottom: 1px solid #eee;
-  transition: background 0.3s;
+  transition: all 0.3s;
+  position: relative;
 }
 
 .leaderboard-item:hover {
@@ -575,6 +864,26 @@ onMounted(() => {
   border-left: 5px solid #ff9800;
 }
 
+/* Highlight para o usuário */
+.leaderboard-item.highlight-user {
+  background: linear-gradient(135deg, #e8f5e9, #c8e6c9) !important;
+  border-left: 5px solid #4caf50 !important;
+  animation: pulse-highlight 2s ease-in-out;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.3);
+}
+
+@keyframes pulse-highlight {
+  0% {
+    box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(76, 175, 80, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(76, 175, 80, 0);
+  }
+}
+
 .rank {
   width: 40px;
   font-size: 18px;
@@ -591,6 +900,19 @@ onMounted(() => {
   font-weight: bold;
   color: #2c3e50;
   margin-bottom: 3px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.you-badge {
+  font-size: 12px;
+  color: #4caf50;
+  font-weight: bold;
+  background: #e8f5e9;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid #c8e6c9;
 }
 
 .player-stats {
@@ -602,5 +924,43 @@ onMounted(() => {
   font-size: 24px;
   width: 40px;
   text-align: center;
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+  margin-top: 20px;
+  padding: 15px;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.page-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  background: #007bff;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.page-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.page-btn:hover:not(:disabled) {
+  background: #0056b3;
+  transform: translateY(-2px);
+}
+
+.page-info {
+  font-weight: bold;
+  color: #2c3e50;
 }
 </style>
