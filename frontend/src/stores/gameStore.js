@@ -86,6 +86,14 @@ export const useGameStore = defineStore('game', {
         },
         getAvailableGames: (state) => {
             return state.games.filter(g => g.status === 'waiting');
+        },
+        isMatchFinished: (state) => {
+            return state.playerMatchScore >= 4 || state.botMatchScore >= 4;
+        },
+        matchWinner: (state) => {
+            if (state.playerMatchScore >= 4) return 'player';
+            if (state.botMatchScore >= 4) return 'opponent';
+            return null;
         }
     },
 
@@ -311,9 +319,21 @@ export const useGameStore = defineStore('game', {
         finishSinglePlayerGame() {
             this.gameState.gameFinished = true;
             this.gameState.isProcessingMove = false;
-            if (this.gameState.playerScore > 60) this.lastGameResult = "VITORIA!";
-            else if (this.gameState.playerScore < 60) this.lastGameResult = "DERROTA...";
-            else this.lastGameResult = "EMPATE";
+            
+            // Determinar vencedor do jogo
+            if (this.gameState.playerScore > 60) {
+                this.lastGameResult = "VITORIA!";
+                if (this.playMode === 'match') {
+                    this.playerMatchScore++;
+                }
+            } else if (this.gameState.playerScore < 60) {
+                this.lastGameResult = "DERROTA...";
+                if (this.playMode === 'match') {
+                    this.botMatchScore++;
+                }
+            } else {
+                this.lastGameResult = "EMPATE";
+            }
         },
 
         sortHand() {
@@ -329,9 +349,18 @@ export const useGameStore = defineStore('game', {
             this.gameState = {
                 deck: [], playerHand: [], botHand: [], tableCards: [], trunfo: null, trunfoSuit: null,
                 playerScore: 0, botScore: 0, playerTurn: false, gameFinished: false, isProcessingMove: false,
-                playMode: 'match', winner: null
+                playMode: this.playMode, winner: null
             };
             this.moveError = null;
+        },
+
+        resetMatch() {
+            // Reset completo incluindo marcas da partida
+            this.playerMatchScore = 0;
+            this.botMatchScore = 0;
+            this.gameNumber = 1;
+            this.lastGameResult = "";
+            this.resetForNewPlay();
         },
 
         async saveGame() { }

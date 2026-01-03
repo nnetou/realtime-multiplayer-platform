@@ -93,40 +93,34 @@
       </div>
     </div>
 
-    <div v-if="store.gameState.gameFinished" class="overlay">
-      <h1>JOGO TERMINADO</h1>
-      <h2 style="color: #f1c40f; font-size: 2rem">
-        {{ store.gameState.playerScore }} -
-        {{ store.gameState.botScore }}
-      </h2>
-      <h3 style="margin-bottom: 20px">{{ store.lastGameResult }}</h3>
+    <!-- Modal de Resultados -->
+    <GameResultModal
+      :show="showResultModal"
+      :playerScore="store.gameState.playerScore"
+      :opponentScore="store.gameState.botScore"
+      :playerMarks="store.playerMatchScore"
+      :opponentMarks="store.botMatchScore"
+      :isMatchMode="isMatchMode"
+      :isMatchOver="isMatchOver"
+      :matchWinner="matchWinner"
+      :allowForfeit="!isMatchOver"
+      @next-game="handleNextGame"
+      @forfeit="showQuitModal = true"
+      @back-to-menu="router.push('/')"
+    />
 
-      <div
-        v-if="newGameConfig.value.playMode === 'match'"
-        class="overlay-buttons"
-      >
-        <button @click="store.resetForNewPlay" class="btn-next">
-          Próximo Jogo (Match: {{ store.playerMatchScore }}-{{
-            store.botMatchScore
-          }})
-        </button>
-        <button @click="confirmForfeit" class="btn-forfeit">
-          Sair / Desistir
-        </button>
-      </div>
-      <div v-else class="overlay-buttons">
-        <button @click="store.resetForNewPlay" class="btn-next">
-          Novo Jogo
-        </button>
-        <button @click="router.push('/')" class="btn-next">
-          Voltar ao Menu Principal
-        </button>
-      </div>
-    </div>
+    <!-- Modal de Confirmação de Desistência -->
+    <QuitConfirmationModal
+      :show="showQuitModal"
+      :betAmount="currentBet"
+      @confirm="handleForfeit"
+      @cancel="showQuitModal = false"
+    />
 
-    <div class="fixed bottom-6 left-6 z-50">
+    <!-- Botão de Desistir (apenas durante jogo ativo) -->
+    <div v-if="!store.gameState.gameFinished" class="fixed bottom-6 left-6 z-50">
       <button
-        @click="confirmForfeit"
+        @click="showQuitModal = true"
         class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg shadow-lg flex items-center gap-2 border-2 border-red-800"
       >
         <span>🏳️ Desistir</span>
@@ -136,12 +130,14 @@
 </template>
 
 <script setup>
-import { onMounted, onBeforeUnmount, inject, computed } from "vue";
+import { ref, computed, watch, onMounted, onBeforeUnmount, inject } from "vue";
 import { useRouter, onBeforeRouteLeave } from "vue-router";
 import { useGameStore } from "../../stores/gameStore";
 import { useAuthStore } from "../../stores/auth";
 import { useSocketStore } from "../../stores/socket";
 import GameCard from "../../components/game/GameCard.vue";
+import GameResultModal from "../../components/game/GameResultModal.vue";
+import QuitConfirmationModal from "../../components/game/QuitConfirmationModal.vue";
 
 const store = useGameStore();
 const authStore = useAuthStore();
@@ -149,6 +145,11 @@ const socketStore = useSocketStore();
 const socket = inject("socket");
 const serverBaseURL = inject("serverBaseURL");
 const router = useRouter();
+
+const showResultModal = ref(false);
+const showQuitModal = ref(false);
+const isMatchOver = ref(false);
+const matchWinner = ref(null);
 
 const cardBackUrl = computed(
   () =>
@@ -167,57 +168,84 @@ const tableColor = computed(() => {
   return colors[equipped] || "#1E8449";
 });
 
-const handlePlayCard = (card) => {
-  store.playCard(card, socket);
-};
-
-// --- SOLUÇÃO DO POPUP DE 0 MOEDAS ---
 const currentBet = computed(
   () => store.multiplayerGame?.betAmount || store.gameState?.betAmount || 0
 );
 
-const confirmForfeit = () => {
-  if (store.gameState.gameFinished) return;
-  if (confirm(`⚠️ Tens a certeza? Irás perder ${currentBet.value} moedas.`)) {
-    socketStore.emitForfeitGame(
-      store.multiplayerGame?.id || store.gameState?.id
-    );
+const isMatchMode = computed(() => store.gameState.playMode === 'match');
+
+const handlePlayCard = (card) => {
+  store.playCard(card, socket);
+};
+
+// Observar quando o jogo termina
+watch(() => store.gameState.gameFinished, (finished) => {
+  if (finished && isMatchMode.value) {
+    checkMatchStatus();
+  } else if (finished) {
+    showResultModal.value = true;
+  }
+});
+
+const checkMatchStatus = () => {
+  // Atualizar marcas baseado no resultado do jogo
+  if (store.gameState.playerScore > 60) {
+    store.playerMatchScore++;
+  } else if (store.gameState.botScore > 60) {
+    store.botMatchScore++;
+  }
+  
+  // Verificar se alguém atingiu 4 marcas
+  if (store.playerMatchScore >= 4) {
+    isMatchOver.value = true;
+    matchWinner.value = 'player';
+  } else if (store.botMatchScore >= 4) {
+    isMatchOver.value = true;
+    matchWinner.value = 'opponent';
+  }
+  
+  // Mostrar modal
+  showResultModal.value = true;
+};
+
+const handleNextGame = () => {
+  showResultModal.value = false;
+  store.resetForNewPlay();
+  
+  // Aqui você pode emitir evento para o servidor iniciar novo jogo
+  if (socket) {
+    socket.emit('request-next-game', { 
+      gameId: store.multiplayerGame?.id 
+    });
   }
 };
 
+const handleForfeit = () => {
+  showQuitModal.value = false;
+  socketStore.emitForfeitGame(
+    store.multiplayerGame?.id || store.gameState?.id
+  );
+  router.push('/');
+};
+
 onBeforeRouteLeave((to, from, next) => {
-  if (store.gameState.gameFinished) {
+  if (store.gameState.gameFinished || isMatchOver.value) {
     next();
     return;
   }
 
-  if (
-    window.confirm(
-      `⛔ AVISO: Se saíres perdes ${currentBet.value} moedas. Continuar?`
-    )
-  ) {
-    socketStore.emitForfeitGame(
-      store.multiplayerGame?.id || store.gameState?.id
-    );
-    next();
-  } else {
-    next(false);
-  }
+  // Mostrar modal customizado em vez de window.confirm
+  showQuitModal.value = true;
+  next(false); // Bloqueia navegação
 });
 
-const handleBeforeUnload = (e) => {
-  if (!store.gameState.gameFinished) {
-    e.preventDefault();
-    e.returnValue = "";
-  }
-};
-
+// Remover beforeunload - não é necessário mais
 onMounted(() => {
   store.bindSocket(socket);
-  window.addEventListener("beforeunload", handleBeforeUnload);
 });
+
 onBeforeUnmount(() => {
-  window.removeEventListener("beforeunload", handleBeforeUnload);
+  // Cleanup se necessário
 });
 </script>
 
