@@ -207,6 +207,21 @@ export function serverStart(port = PORT) {
                 if (!data.authToken) {
                     throw new Error("Authentication token is missing.");
                 }
+
+                // Verificar se o jogador já tem uma sala criada
+                const existingGame = games.find(g => 
+                    g.creatorUserId === data.player1Id && 
+                    (g.status === 'Pending' || g.status === 'Playing')
+                );
+                
+                if (existingGame) {
+                    socket.emit("error", { 
+                        message: "Já tens uma sala ativa. Cancela-a primeiro para criar uma nova." 
+                    });
+                    console.log(`⚠️ Utilizador ${data.player1Id} tentou criar sala duplicada`);
+                    return;
+                }
+
                 if (data.playMode === 'single_game') {
                     await axios.post(`${LARAVEL_API}/games/create-multiplayer`, {
                         player1_user_id: data.player1Id,
@@ -246,6 +261,48 @@ export function serverStart(port = PORT) {
                 console.error("❌ ERRO AO CRIAR JOGO NO LARAVEL:", error.response ? error.response.data : error.message);
 
             }
+        });
+
+        socket.on("cancel-game", async (data) => {
+            const gameId = String(data.gameId);
+            const gameIndex = games.findIndex(g => String(g.id) === gameId);
+            
+            if (gameIndex === -1) {
+                console.log(`⚠️ Tentativa de cancelar sala inexistente: ${gameId}`);
+                return;
+            }
+            
+            const game = games[gameIndex];
+            
+            // Só o criador pode cancelar e apenas se ainda estiver Pending
+            if (game.creatorId !== socket.id) {
+                console.log(`⚠️ Apenas o criador pode cancelar a sala`);
+                return;
+            }
+            
+            if (game.status !== 'Pending') {
+                console.log(`⚠️ Não é possível cancelar sala em estado ${game.status}`);
+                return;
+            }
+            
+            // Update status in database
+            try {
+                await axios.patch(`${LARAVEL_API}/games/${game.id}/status`, {
+                    status: 'Interrupted'
+                });
+                console.log(`✅ [${game.id}] Status atualizado para 'Interrupted' na BD`);
+            } catch (error) {
+                console.error(`❌ Erro ao atualizar status para 'Interrupted':`, error.message);
+            }
+            
+            // Remover sala da lista
+            games.splice(gameIndex, 1);
+            
+            // Notificar todos os clientes que a sala foi cancelada
+            io.emit("games", games.filter(g => g.status === 'Pending'));
+            socket.emit("game-cancelled", { gameId: gameId });
+            
+            console.log(`🗑️ [${gameId}] Sala cancelada pelo criador`);
         });
 
         socket.on("join-game", async (data) => {
@@ -456,7 +513,7 @@ export function serverStart(port = PORT) {
             }
         });
 
-        socket.on("disconnect", () => {
+        socket.on("disconnect", async () => {
             console.log(`🔌 ${socket.id} desconectou`);
 
             // Procurar jogo deste jogador

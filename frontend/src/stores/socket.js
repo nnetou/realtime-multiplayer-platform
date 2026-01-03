@@ -14,7 +14,7 @@ export const useSocketStore = defineStore('socket', () => {
     const emitJoin = (user) => { if(!joined.value){ socket.emit('join', user); joined.value = true; } }
     const emitCreateGame = (gameData) => { socket.emit('create-game', gameData); }
     const emitPlayMove = (data) => { socket.emit('play-card', data); };
-    const emitCancelGame = (gameId) => { socket.emit('game:cancel', { gameId }); };
+    const emitCancelGame = (gameId) => { socket.emit('cancel-game', { gameId }); };
     const emitForfeitGame = (gameId) => { socket.emit('game:forfeit', { gameId }); }
     const emitGetGames = () => { socket.emit('get-games') }
 
@@ -34,9 +34,13 @@ export const useSocketStore = defineStore('socket', () => {
     const handleGameEvents = () => {
         socket.off('games'); socket.off('game:started'); socket.off('game:opponent_move');
         socket.off('trick-result'); socket.off('deal-card'); socket.off('opponent-drew');
-        socket.off('game:ended'); socket.off('game:cancelled');
+        socket.off('game:ended'); socket.off('game-cancelled'); socket.off('error');
 
-        socket.on('game:cancelled', () => {
+        socket.on('error', (data) => {
+            toast.error(data.message || 'Ocorreu um erro');
+        });
+
+        socket.on('game-cancelled', () => {
              toast.info("A sala foi cancelada.");
              router.push({ name: 'lobby' });
         });

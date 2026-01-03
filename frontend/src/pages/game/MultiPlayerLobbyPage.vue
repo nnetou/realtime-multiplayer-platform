@@ -8,8 +8,9 @@
             <Button
               @click="openCreateModal"
               class="bg-green-600 hover:bg-green-700"
+              :disabled="gameStore.myGames && gameStore.myGames.length > 0"
             >
-              Criar Nova Sala
+              {{ gameStore.myGames && gameStore.myGames.length > 0 ? 'Já tens uma sala' : 'Criar Nova Sala' }}
             </Button>
           </CardTitle>
         </CardHeader>
@@ -51,9 +52,14 @@
               </p>
             </div>
             <div class="space-x-2">
-              <Button @click="cancelGame(game)" variant="destructive" size="sm"
-                >Cancelar</Button
+              <Button 
+                @click="cancelGame(game)" 
+                variant="destructive" 
+                size="sm"
+                class="transition-all duration-200 hover:scale-105 hover:shadow-lg"
               >
+                Cancelar
+              </Button>
               <Button
                 v-if="game.player2"
                 @click="startGame(game)"
@@ -297,7 +303,7 @@ const confirmCreateGame = () => {
 };
 
 const cancelGame = (game) => {
-  gameStore.cancelGame(socket, game);
+  gameStore.cancelGame(game);
 };
 const joinGame = (game) => {
   socketStore.emitJoinGame(game.id);

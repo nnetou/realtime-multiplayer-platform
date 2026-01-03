@@ -222,8 +222,9 @@ export const useGameStore = defineStore('game', {
             }
         },
 
-        cancelGame(socket, game) {
-            if (socket) socket.emit('game:cancel', { gameId: game.id });
+        cancelGame(game) {
+            const socketStore = useSocketStore();
+            socketStore.emitCancelGame(game.id);
         },
 
         // --- MÉTODOS DE JOGO (Comum) ---
