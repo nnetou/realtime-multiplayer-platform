@@ -42,13 +42,13 @@
           class="flex flex-col w-full shadow-lg border-2 border-gray-200 rounded-xl"
         >
           <CardHeader class="text-center">
-            <CardTitle class="text-3xl font-bold text-[#2c3e50]"
+            <CardTitle class="text-3xl font-bold text-[#2c3e50] text-center"
               >Single Player</CardTitle
             >
-            <CardDescription class="text-base text-[#7f8c8d] pt-1"
+            <CardDescription class="text-base text-[#7f8c8d] pt-1 text-center mx-auto"
               >Play alone against a bot!</CardDescription
             >
-            <p v-if="isAdmin" class="mt-2 text-sm font-semibold text-red-600">
+            <p v-if="isAdmin" class="mt-2 text-sm font-semibold text-red-600 text-center">
               Admin accounts cannot start games.
             </p>
           </CardHeader>
@@ -78,13 +78,13 @@
           class="flex flex-col w-full shadow-lg border-2 border-gray-200 rounded-xl"
         >
           <CardHeader class="text-center">
-            <CardTitle class="text-3xl font-bold text-[#2c3e50]"
+            <CardTitle class="text-3xl font-bold text-[#2c3e50] text-center"
               >Multi Player</CardTitle
             >
-            <CardDescription class="text-base text-[#7f8c8d] pt-1"
+            <CardDescription class="text-base text-[#7f8c8d] pt-1 text-center mx-auto"
               >Play against other players!</CardDescription
             >
-            <p v-if="isAdmin" class="mt-2 text-sm font-semibold text-red-600">
+            <p v-if="isAdmin" class="mt-2 text-sm font-semibold text-red-600 text-center">
               Admin accounts cannot start games.
             </p>
           </CardHeader>
@@ -119,31 +119,38 @@
         class="flex flex-1 flex-col w-full shadow-lg border-2 border-gray-200 rounded-xl"
       >
         <CardHeader class="text-center">
-          <CardTitle class="text-3xl font-bold text-[#2c3e50]"
+          <CardTitle class="text-3xl font-bold text-[#2c3e50] text-center"
             >Game History 📜</CardTitle
           >
-          <CardDescription class="text-base text-[#7f8c8d] pt-1">
-            {{
-              authStore.type === "P"
-                ? "Review your multiplayer past games!"
-                : "Review all of the games!"
-            }}</CardDescription
-          >
+          <CardDescription class="text-base text-[#7f8c8d] pt-1 text-center mx-auto">
+            Review your multiplayer past games!
+          </CardDescription>
+          <p v-if="isAdmin" class="mt-2 text-sm font-semibold text-red-600 text-center">
+            Admin accounts cannot view player history.
+          </p>
         </CardHeader>
         <CardContent class="flex justify-center gap-4 mt-auto pt-6">
           <Button
-            :class="
-              authStore.isAuthenticated ? 'home-btn' : 'login-necessary-btn'
-            "
+            :disabled="isAdmin || !authStore.isAuthenticated"
+            :class="[
+              authStore.isAuthenticated ? 'home-btn' : 'login-necessary-btn',
+              isAdmin ? 'admin-disabled' : ''
+            ]"
             @click="
-              authStore.isAuthenticated
+              authStore.isAuthenticated && !isAdmin
                 ? goToHistory()
                 : router.push({ name: 'login' })
             "
             size="lg"
             variant="secondary"
           >
-            {{ authStore.isAuthenticated ? "History" : "Login Necessary" }}
+            {{
+              isAdmin
+                ? "Admin cannot view"
+                : authStore.isAuthenticated
+                  ? "History"
+                  : "Login Necessary"
+            }}
           </Button>
         </CardContent>
       </Card>
@@ -155,9 +162,9 @@
           <CardTitle class="text-3xl font-bold text-[#2c3e50]"
             >Leaderboard 🏆</CardTitle
           >
-          <CardDescription class="text-base text-[#7f8c8d] pt-1"
-            >Check your ranking or the global leaderboard!</CardDescription
-          >
+          <CardDescription class="text-base text-[#7f8c8d] pt-1">
+            Check the global leaderboard!
+          </CardDescription>
         </CardHeader>
         <CardContent class="flex justify-center gap-4 mt-auto pt-6">
           <Button
@@ -182,10 +189,10 @@
         class="flex flex-1 flex-col w-full shadow-lg border-2 border-purple-300 rounded-xl bg-purple-50"
       >
         <CardHeader class="text-center">
-          <CardTitle class="text-3xl font-bold text-purple-700"
+          <CardTitle class="text-3xl font-bold text-purple-700 text-center"
             >Admin Panel 🔧</CardTitle
           >
-          <CardDescription class="text-base text-purple-600 pt-1"
+          <CardDescription class="text-base text-purple-600 pt-1 text-center mx-auto"
             >Manage users and platform settings</CardDescription
           >
         </CardHeader>
@@ -205,7 +212,7 @@
         class="flex flex-1 flex-col w-full shadow-lg border-2 border-gray-200 rounded-xl"
       >
         <CardHeader class="text-center">
-          <CardTitle class="text-3xl font-bold text-[#2c3e50]"
+          <CardTitle class="text-3xl font-bold text-[#2c3e50] text-center"
             >About us</CardTitle
           >
         </CardHeader>
