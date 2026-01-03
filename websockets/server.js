@@ -6,7 +6,7 @@ const PORT = 3000;
 const games = [];
 
 const SUITS = ['hearts', 'diamonds', 'clubs', 'spades'];
-const RANKS = {'2': {value:0, order:1}, '3': {value:10, order:10}, '4': {value:0, order:2}, '5': {value:0, order:3}, '6': {value:0, order:4}, '7': {value:10, order:9}, 'Q': {value:2, order:5}, 'J': {value:3, order:6}, 'K': {value:4, order:7}, 'A': {value:11, order:8}};
+const RANKS = { '2': { value: 0, order: 1 }, '3': { value: 10, order: 10 }, '4': { value: 0, order: 2 }, '5': { value: 0, order: 3 }, '6': { value: 0, order: 4 }, '7': { value: 10, order: 9 }, 'Q': { value: 2, order: 5 }, 'J': { value: 3, order: 6 }, 'K': { value: 4, order: 7 }, 'A': { value: 11, order: 8 } };
 
 function createDeck() {
     let deck = [];
@@ -29,8 +29,8 @@ function getWinningCard(c1, c2, trunfoSuit) {
     if (!isC1Trunfo && isC2Trunfo) return c2;
     if (isC1Trunfo && !isC2Trunfo) return c1;
     if (c1.suit === c2.suit) {
-        const val1 = (c1.rank.value||0)*100+(c1.rank.order||0);
-        const val2 = (c2.rank.value||0)*100+(c2.rank.order||0);
+        const val1 = (c1.rank.value || 0) * 100 + (c1.rank.order || 0);
+        const val2 = (c2.rank.value || 0) * 100 + (c2.rank.order || 0);
         return val1 > val2 ? c1 : c2;
     }
     return c1;
@@ -38,10 +38,10 @@ function getWinningCard(c1, c2, trunfoSuit) {
 
 // === TRANSAÇÃO DE DINHEIRO ===
 async function processGameEnd(io, game, winnerSocketId, reason) {
-    if (!game || game.status === 'ended') return;
-    
-    game.status = 'ended';
-    
+    if (!game || game.status === 'Ended') return;
+
+    game.status = 'Ended';
+
     const isCreatorWinner = (String(winnerSocketId) === String(game.creatorId));
     const winnerUserId = isCreatorWinner ? game.creatorUserId : game.player2UserId;
     const loserUserId = isCreatorWinner ? game.player2UserId : game.creatorUserId;
@@ -82,35 +82,59 @@ export function serverStart(port = PORT) {
     console.log(`🚀 SERVER NA PORTA ${port}`);
 
     io.on("connection", (socket) => {
-        
-        socket.on("create-game", (data) => {
-            const gameId = String(Date.now());
-            // GARANTIR QUE LÊ A APOSTA
-            const betAmount = (data.betAmount >= 0) ? data.betAmount : 0; 
-            const newGame = {
-                id: gameId,
-                creatorId: socket.id,
-                creatorUserId: data.player1Id, // ID DO LARAVEL
-                creatorName: data.playerName || "Jogador",
-                player2: null,
-                player2UserId: null,
-                status: 'waiting',
-                gameType: data.gameType || 3,
-                betAmount: betAmount, 
-                state: null
-            };
-            games.push(newGame);
-            socket.join(gameId);
-            io.emit("games", games.filter(g => g.status === 'waiting'));
-            socket.emit("game-created", newGame);
+
+        socket.on("create-game", async (data) => {
+            try {
+                if (!data.authToken) {
+                    throw new Error("Authentication token is missing.");
+                }
+                if (data.playMode === 'single_game') {
+                    await axios.post(`${LARAVEL_API}/games/create-multiplayer`, {
+                        player1_user_id: data.player1Id,
+                        bet_amount: data.betAmount,
+                        game_type: data.gameType,
+                        play_mode: data.playMode
+                    }, {
+                        headers: {
+                            'Authorization': `Bearer ${data.authToken}`
+                        }
+                    });
+                }
+
+                const gameId = String(Date.now());
+                // GARANTIR QUE LÊ A APOSTA
+                const betAmount = (data.betAmount >= 0) ? data.betAmount : 0;
+                const newGame = {
+                    id: gameId,
+                    creatorId: socket.id,
+                    creatorUserId: data.player1Id, // ID DO LARAVEL
+                    creatorName: data.playerName || "Jogador",
+                    player2: null,
+                    player2UserId: null,
+                    status: 'Pending',
+                    playMode: data.playMode || 'match',
+                    gameType: data.gameType || 3,
+                    betAmount: betAmount,
+                    state: null
+                };
+
+                games.push(newGame);
+                socket.join(gameId);
+                io.emit("games", games.filter(g => g.status === 'Pending'));
+                socket.emit("game-created", newGame);
+
+            } catch (error) {
+                console.error("❌ ERRO AO CRIAR JOGO NO LARAVEL:", error.response ? error.response.data : error.message);
+
+            }
         });
 
         socket.on("join-game", (data) => {
             const game = games.find(g => String(g.id) === String(data.gameId));
-            if (game && !game.player2 && game.status === 'waiting') {
+            if (game && !game.player2 && game.status === 'Pending') {
                 game.player2 = socket.id;
                 game.player2UserId = data.userId; // ID DO LARAVEL
-                game.status = 'playing';
+                game.status = 'Playing';
 
                 const fullDeck = createDeck();
                 const p1Hand = fullDeck.splice(0, 3);
@@ -145,8 +169,8 @@ export function serverStart(port = PORT) {
         socket.on("play-card", (data) => {
             const gameId = String(data.gameId);
             const game = games.find(g => String(g.id) === gameId);
-            if(!game || !game.state) return;
-            
+            if (!game || !game.state) return;
+
             socket.to(gameId).emit("game:opponent_move", { card: data.card });
             game.state.table.push({ player: socket.id, card: data.card });
 
@@ -155,7 +179,7 @@ export function serverStart(port = PORT) {
                 const p2 = game.state.table[1];
                 const winningCard = getWinningCard(p1.card, p2.card, game.state.trunfoSuit);
                 const winnerId = (winningCard.code === p1.card.code) ? p1.player : p2.player;
-                const points = (p1.card.rank.value||0) + (p2.card.rank.value||0);
+                const points = (p1.card.rank.value || 0) + (p2.card.rank.value || 0);
 
                 if (winnerId === game.creatorId) game.state.p1Score += points;
                 else game.state.p2Score += points;
@@ -163,18 +187,18 @@ export function serverStart(port = PORT) {
 
                 setTimeout(() => {
                     io.to(gameId).emit("trick-result", { winnerId, pointsInTrick: points, p1Score: game.state.p1Score, p2Score: game.state.p2Score, nextTurn: winnerId });
-                    
-                    if(game.state.deck.length > 0) {
+
+                    if (game.state.deck.length > 0) {
                         const c1 = game.state.deck.pop();
                         const c2 = game.state.deck.pop();
                         const loserId = (winnerId === game.creatorId) ? game.player2 : game.creatorId;
-                        if(c1) { io.to(winnerId).emit("deal-card", {card:c1, deckCount:game.state.deck.length}); io.to(loserId).emit("opponent-drew", {deckCount:game.state.deck.length}); }
-                        if(c2) { io.to(loserId).emit("deal-card", {card:c2, deckCount:game.state.deck.length}); io.to(winnerId).emit("opponent-drew", {deckCount:game.state.deck.length}); }
+                        if (c1) { io.to(winnerId).emit("deal-card", { card: c1, deckCount: game.state.deck.length }); io.to(loserId).emit("opponent-drew", { deckCount: game.state.deck.length }); }
+                        if (c2) { io.to(loserId).emit("deal-card", { card: c2, deckCount: game.state.deck.length }); io.to(winnerId).emit("opponent-drew", { deckCount: game.state.deck.length }); }
                     }
 
-                    if((game.state.p1Score + game.state.p2Score) === 120) {
-                         const w = (game.state.p1Score > game.state.p2Score) ? game.creatorId : game.player2;
-                         processGameEnd(io, game, w, 'points');
+                    if ((game.state.p1Score + game.state.p2Score) === 120) {
+                        const w = (game.state.p1Score > game.state.p2Score) ? game.creatorId : game.player2;
+                        processGameEnd(io, game, w, 'points');
                     }
                 }, 1500);
             }
@@ -182,23 +206,23 @@ export function serverStart(port = PORT) {
 
         socket.on("game:forfeit", (data) => {
             const game = games.find(g => String(g.id) === String(data.gameId));
-            if (game && game.status === 'playing') {
+            if (game && game.status === 'Playing') {
                 const winnerId = (socket.id === game.creatorId) ? game.player2 : game.creatorId;
                 processGameEnd(io, game, winnerId, 'forfeit');
             }
         });
 
         socket.on("disconnect", () => {
-             const game = games.find(g => (g.creatorId === socket.id || g.player2 === socket.id));
-             if (game && game.status === 'playing') {
-                 const winnerId = (socket.id === game.creatorId) ? game.player2 : game.creatorId;
-                 processGameEnd(io, game, winnerId, 'disconnect');
-             } else if (game && game.status === 'waiting' && game.creatorId === socket.id) {
-                 games.splice(games.indexOf(game), 1);
-                 io.emit("games", games.filter(g => g.status === 'waiting'));
-             }
+            const game = games.find(g => (g.creatorId === socket.id || g.player2 === socket.id));
+            if (game && game.status === 'Playing') {
+                const winnerId = (socket.id === game.creatorId) ? game.player2 : game.creatorId;
+                processGameEnd(io, game, winnerId, 'disconnect');
+            } else if (game && game.status === 'Pending' && game.creatorId === socket.id) {
+                games.splice(games.indexOf(game), 1);
+                io.emit("games", games.filter(g => g.status === 'Pending'));
+            }
         });
-        
-        socket.on("get-games", () => { socket.emit("games", games.filter(g => g.status === 'waiting')); });
+
+        socket.on("get-games", () => { socket.emit("games", games.filter(g => g.status === 'Pending')); });
     });
 }

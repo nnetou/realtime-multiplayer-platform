@@ -63,7 +63,7 @@ const router = createRouter({
             },
             {
               path: 'quick',
-              name: 'mp-quick-game',
+              name: 'multiplayer-quick-game',
               component: MultiPlayerGamePage,
               meta: { playMode: 'single_game', requiresAuth: true }
             },
@@ -92,9 +92,9 @@ const router = createRouter({
       name: 'register',
       component: RegisterPage,
     },
-    { 
-      path: '/shop', 
-      name: 'shop', 
+    {
+      path: '/shop',
+      name: 'shop',
       component: ShopPage,
       meta: { requiresAuth: true }
     },

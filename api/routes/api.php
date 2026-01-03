@@ -11,6 +11,7 @@ use App\Http\Controllers\MatchController;
 use App\Http\Controllers\CoinController;
 use App\Http\Controllers\ShopController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\GameController;
 // use App\Http\Controllers\UserStatisticsController; // Comenta isto se não tiveres o ficheiro
 
 /*
@@ -61,8 +62,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/users/me', [AuthController::class, 'deleteAccount']);
     Route::post('/logout', [AuthController::class, 'logout']);
 
-    // Jogo Singleplayer (Guarda o resultado enviado pelo cliente)
-    Route::post('/matches', [MatchController::class, 'store']);
+    // Jogo MultiPlayer (Guarda o resultado enviado pelo cliente)
+    //Game (Match null)
+    Route::get('/games/{id}', [GameController::class, 'show']);
+    Route::post('/games/create-multiplayer', [GameController::class, 'createMultiplayerGame']); // <-- ADICIONAR ESTA LINHA
+    Route::post('/game/settle', [GameController::class, 'settleBet']);
+
+
 
     // Histórico e Stats
     Route::get('/history/matches', [MatchController::class, 'index']);

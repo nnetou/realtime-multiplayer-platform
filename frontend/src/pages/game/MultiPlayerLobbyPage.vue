@@ -146,7 +146,31 @@
         </h2>
 
         <div class="space-y-2">
-          <label class="font-semibold text-gray-700">Tipo de Jogo</label>
+          <label class="font-semibold text-gray-700">Modo de Jogo</label>
+          <div class="grid grid-cols-2 gap-4">
+            <button
+              @click="newGameConfig.playMode = 'single_game'"
+              class="p-4 rounded-lg border-2 text-center transition-all"
+              :class="
+                newGameConfig.playMode === 'single_game'
+                  ? 'border-green-600 bg-green-50 text-green-700 font-bold'
+                  : 'border-gray-200 hover:border-gray-300'
+              "
+            >
+              Single Game
+            </button>
+            <button
+              @click="newGameConfig.playMode = 'match'"
+              class="p-4 rounded-lg border-2 text-center transition-all"
+              :class="
+                newGameConfig.playMode === 'match'
+                  ? 'border-green-600 bg-green-50 text-green-700 font-bold'
+                  : 'border-gray-200 hover:border-gray-300'
+              "
+            >
+              Match
+            </button>
+          </div>
           <div class="grid grid-cols-2 gap-4">
             <button
               @click="newGameConfig.type = 3"
@@ -175,15 +199,20 @@
 
         <div class="space-y-2">
           <label class="font-semibold text-gray-700"
-            >Valor da Aposta (Máx: 100)</label
+            >Valor da Aposta
+            {{
+              newGameConfig.playMode === "single_game"
+                ? "2"
+                : "(Min:3) (Máx:100)"
+            }}</label
           >
           <div class="relative">
             <span class="absolute left-3 top-1/2 -translate-y-1/2">💰</span>
             <input
               v-model.number="newGameConfig.bet"
               type="number"
-              min="0"
-              max="100"
+              :min="newGameConfig.playMode === 'single_game' ? 2 : 3"
+              :max="newGameConfig.playMode === 'single_game' ? 2 : 100"
               class="w-full pl-10 p-2 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
               placeholder="0 para grátis"
             />
@@ -230,15 +259,22 @@ const socketStore = useSocketStore();
 const socket = inject("socket");
 
 const showCreateModal = ref(false);
-const newGameConfig = ref({ type: 3, bet: 0 });
+const newGameConfig = ref({ playMode: "match", type: 3, bet: 3 });
 
 const isValidBet = computed(() => {
   const bet = newGameConfig.value.bet;
-  return bet >= 0 && bet <= 100 && bet <= (authStore.user?.coins_balance || 0);
+  const isMatchMode = newGameConfig.value.playMode === "match";
+  if (isMatchMode) {
+    return (
+      bet >= 3 && bet <= 100 && bet <= (authStore.user?.coins_balance || 0)
+    );
+  } else {
+    return bet === 2 && bet <= (authStore.user?.coins_balance || 0);
+  }
 });
 
 const openCreateModal = () => {
-  newGameConfig.value = { type: 3, bet: 0 };
+  newGameConfig.value = { playMode: "match", type: 3, bet: 2 };
   showCreateModal.value = true;
 };
 
@@ -247,10 +283,16 @@ const confirmCreateGame = () => {
   const userData = {
     player1Id: authStore?.user.id,
     playerName: authStore.user?.nickname || "Jogador",
+    playMode: newGameConfig.value.playMode,
     gameType: newGameConfig.value.type,
     betAmount: newGameConfig.value.bet,
   };
-  socketStore.emitCreateGame(userData);
+
+  const gameDataWithToken = {
+    ...userData,
+    authToken: authStore?.token,
+  };
+  socketStore.emitCreateGame(gameDataWithToken);
   showCreateModal.value = false;
 };
 
@@ -262,7 +304,11 @@ const joinGame = (game) => {
 };
 const startGame = (game) => {
   gameStore.multiplayerGame = game;
-  router.push({ name: "multiplayer-full-match" });
+  if (newGameConfig.value.playMode === "single_game") {
+    router.push({ name: "multiplayer-quick-game" });
+  } else {
+    router.push({ name: "multiplayer-full-match" });
+  }
 };
 
 onMounted(() => {
