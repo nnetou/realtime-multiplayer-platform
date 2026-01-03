@@ -36,6 +36,7 @@ Route::get('/coin-transaction-types', [AdminController::class, 'getTransactionTy
 
 // *** ROTA CRÍTICA PARA O NODE.JS (MULTIPLAYER) ***
 Route::post('/game/settle', [MatchController::class, 'settleBet']);
+Route::patch('/matches/{id}', [MatchController::class, 'updateMatch']);
 
 // Health Check
 Route::get('/status', function () {
@@ -68,6 +69,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/games/{id}', [GameController::class, 'show']);
     Route::post('/games/create-multiplayer', [GameController::class, 'createMultiplayerGame']);
     Route::post('/game/settle', [GameController::class, 'settleBet']);
+
+    // Match (Partida Multiplayer)
+    Route::post('/matches', [MatchController::class, 'createMatch']);
+
 
     // Histórico e Stats
     Route::get('/history/matches', [MatchController::class, 'index']);

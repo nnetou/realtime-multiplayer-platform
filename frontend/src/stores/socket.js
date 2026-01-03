@@ -14,7 +14,7 @@ export const useSocketStore = defineStore('socket', () => {
     const emitJoin = (user) => { if(!joined.value){ socket.emit('join', user); joined.value = true; } }
     const emitCreateGame = (gameData) => { socket.emit('create-game', gameData); }
     const emitPlayMove = (data) => { socket.emit('play-card', data); };
-    const emitCancelGame = (gameId) => { socket.emit('cancel-game', { gameId }); };
+    const emitCancelGame = (gameId) => { socket.emit('cancel-game', { gameId, authToken: authStore.token }); };
     const emitForfeitGame = (gameId) => { socket.emit('game:forfeit', { gameId }); }
     const emitGetGames = () => { socket.emit('get-games') }
 

@@ -222,17 +222,38 @@ export function serverStart(port = PORT) {
                     return;
                 }
 
-                if (data.playMode === 'single_game') {
-                    await axios.post(`${LARAVEL_API}/games/create-multiplayer`, {
+                // Criar registo na Base de Dados (endpoint diferente conforme o modo)
+                let databaseResponse;
+                let databaseId;
+
+                if (data.playMode === 'match') {
+                    // Partida (Match) - Endpoint: /api/matches
+                    databaseResponse = await axios.post(`${LARAVEL_API}/matches`, {
                         player1_user_id: data.player1Id,
                         bet_amount: data.betAmount,
-                        game_type: data.gameType,
+                        game_type: String(data.gameType || 3),
+                        status: 'Pending'
+                    }, {
+                        headers: {
+                            'Authorization': `Bearer ${data.authToken}`
+                        }
+                    });
+                    databaseId = databaseResponse.data.id;
+                    console.log(`✅ Match criado na BD com ID: ${databaseId}`);
+                } else if (data.playMode === 'single_game') {
+                    // Jogo Único - Endpoint: /api/games/create-multiplayer
+                    databaseResponse = await axios.post(`${LARAVEL_API}/games/create-multiplayer`, {
+                        player1_user_id: data.player1Id,
+                        bet_amount: data.betAmount,
+                        game_type: String(data.gameType || 3),
                         play_mode: data.playMode
                     }, {
                         headers: {
                             'Authorization': `Bearer ${data.authToken}`
                         }
                     });
+                    databaseId = databaseResponse.data.id;
+                    console.log(`✅ Game criado na BD com ID: ${databaseId}`);
                 }
 
                 const gameId = String(Date.now());
@@ -240,6 +261,7 @@ export function serverStart(port = PORT) {
                 const betAmount = (data.betAmount >= 0) ? data.betAmount : 0;
                 const newGame = {
                     id: gameId,
+                    databaseId: databaseId, // ID da tabela Match ou Game
                     creatorId: socket.id,
                     creatorUserId: data.player1Id, // ID DO LARAVEL
                     creatorName: data.playerName || "Jogador",
@@ -259,13 +281,17 @@ export function serverStart(port = PORT) {
 
             } catch (error) {
                 console.error("❌ ERRO AO CRIAR JOGO NO LARAVEL:", error.response ? error.response.data : error.message);
-
+                socket.emit("error", { 
+                    message: "Erro ao criar sala. Verifica o teu saldo e tenta novamente." 
+                });
             }
         });
 
         socket.on("cancel-game", async (data) => {
             const gameId = String(data.gameId);
             const gameIndex = games.findIndex(g => String(g.id) === gameId);
+            
+            console.log(`🔍 Cancel request for ${gameId}, authToken: ${data.authToken ? 'present' : 'MISSING'}`);
             
             if (gameIndex === -1) {
                 console.log(`⚠️ Tentativa de cancelar sala inexistente: ${gameId}`);
@@ -285,14 +311,31 @@ export function serverStart(port = PORT) {
                 return;
             }
             
-            // Update status in database
+            // Update status in database (usar databaseId e endpoint correto)
             try {
-                await axios.patch(`${LARAVEL_API}/games/${game.id}/status`, {
-                    status: 'Interrupted'
-                });
-                console.log(`✅ [${game.id}] Status atualizado para 'Interrupted' na BD`);
+                if (game.playMode === 'match' && game.databaseId) {
+                    // Atualizar Match
+                    console.log(`🔄 Atualizando Match ${game.databaseId} para 'Interrupted'...`);
+                    const response = await axios.patch(`${LARAVEL_API}/matches/${game.databaseId}`, {
+                        status: 'Interrupted'
+                    }, {
+                        headers: {
+                            'Authorization': `Bearer ${data.authToken || ''}`
+                        }
+                    });
+                    console.log(`✅ [${game.id}] Match ${game.databaseId} atualizado para 'Interrupted' na BD`, response.data);
+                } else if (game.playMode === 'single_game' && game.databaseId) {
+                    // Atualizar Game
+                    console.log(`🔄 Atualizando Game ${game.databaseId} para 'Interrupted'...`);
+                    const response = await axios.patch(`${LARAVEL_API}/games/${game.databaseId}/status`, {
+                        status: 'Interrupted'
+                    });
+                    console.log(`✅ [${game.id}] Game ${game.databaseId} atualizado para 'Interrupted' na BD`, response.data);
+                } else {
+                    console.log(`⚠️ Sem databaseId para atualizar. playMode: ${game.playMode}, databaseId: ${game.databaseId}`);
+                }
             } catch (error) {
-                console.error(`❌ Erro ao atualizar status para 'Interrupted':`, error.message);
+                console.error(`❌ Erro ao atualizar status para 'Interrupted':`, error.response?.data || error.message);
             }
             
             // Remover sala da lista
@@ -312,14 +355,33 @@ export function serverStart(port = PORT) {
                 game.player2UserId = data.userId; // ID DO LARAVEL
                 game.status = 'Playing';
 
-                // Update status in database
-                try {
-                    await axios.patch(`${LARAVEL_API}/games/${game.id}/status`, {
-                        status: 'Playing'
-                    });
-                    console.log(`✅ [${game.id}] Status atualizado para 'Playing' na BD`);
-                } catch (error) {
-                    console.error(`❌ Erro ao atualizar status para 'Playing':`, error.message);
+                // Update match in database with player2 info
+                if (game.playMode === 'match' && game.databaseId) {
+                    try {
+                        await axios.patch(`${LARAVEL_API}/matches/${game.databaseId}`, {
+                            player2_user_id: data.userId,
+                            status: 'Playing'
+                        }, {
+                            headers: {
+                                'Authorization': `Bearer ${data.authToken || ''}`
+                            }
+                        });
+                        console.log(`✅ [${game.id}] Match ${game.databaseId} atualizado com Player2 e status 'Playing'`);
+                    } catch (error) {
+                        console.error(`❌ Erro ao atualizar match:`, error.message);
+                    }
+                }
+
+                // Update status in database (for single_game mode)
+                if (game.playMode === 'single_game') {
+                    try {
+                        await axios.patch(`${LARAVEL_API}/games/${game.id}/status`, {
+                            status: 'Playing'
+                        });
+                        console.log(`✅ [${game.id}] Status atualizado para 'Playing' na BD`);
+                    } catch (error) {
+                        console.error(`❌ Erro ao atualizar status para 'Playing':`, error.message);
+                    }
                 }
 
                 const fullDeck = createDeck();

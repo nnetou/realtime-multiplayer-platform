@@ -347,4 +347,97 @@ class MatchController extends Controller
 
         return response()->json(['rank' => 0]);
     }
+
+    /**
+     * Cria um novo Match (Partida Multiplayer) - Chamado pelo Node.js
+     */
+    public function createMatch(Request $request)
+    {
+        $validated = $request->validate([
+            'player1_user_id' => 'required|integer|exists:users,id',
+            'bet_amount' => 'required|integer|min:0',
+            'game_type' => 'nullable|string',
+            'status' => 'nullable|string'
+        ]);
+
+        try {
+            // Verificar se jogador tem saldo suficiente
+            $player1 = User::find($validated['player1_user_id']);
+            if ($player1->coins_balance < $validated['bet_amount']) {
+                return response()->json([
+                    'error' => 'Saldo insuficiente para criar a partida.'
+                ], 402);
+            }
+
+            $match = new MatchModel();
+            $match->player1_user_id = $validated['player1_user_id'];
+            $match->player2_user_id = null; // Será preenchido quando o player2 entrar
+            $match->type = $validated['game_type'] ?? '3';
+            $match->status = $validated['status'] ?? 'Pending';
+            $match->stake = $validated['bet_amount'];
+            $match->began_at = now();
+            $match->save();
+
+            Log::info("Match criado: ID {$match->id} | Player1: {$match->player1_user_id} | Aposta: {$match->stake}");
+
+            return response()->json([
+                'id' => $match->id,
+                'player1_user_id' => $match->player1_user_id,
+                'type' => $match->type,
+                'status' => $match->status,
+                'stake' => $match->stake
+            ], 201);
+
+        } catch (\Exception $e) {
+            Log::error('Erro ao criar match: ' . $e->getMessage());
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Atualiza um Match existente (quando player2 entra)
+     */
+    public function updateMatch(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'player2_user_id' => 'nullable|integer|exists:users,id',
+            'status' => 'nullable|string',
+            'winner_user_id' => 'nullable|integer|exists:users,id'
+        ]);
+
+        try {
+            $match = MatchModel::find($id);
+
+            if (!$match) {
+                return response()->json(['error' => 'Match não encontrado'], 404);
+            }
+
+            if (isset($validated['player2_user_id'])) {
+                $match->player2_user_id = $validated['player2_user_id'];
+            }
+
+            if (isset($validated['status'])) {
+                $match->status = $validated['status'];
+            }
+
+            if (isset($validated['winner_user_id'])) {
+                $match->winner_user_id = $validated['winner_user_id'];
+            }
+
+            $match->save();
+
+            Log::info("Match atualizado: ID {$match->id}");
+
+            return response()->json([
+                'id' => $match->id,
+                'player1_user_id' => $match->player1_user_id,
+                'player2_user_id' => $match->player2_user_id,
+                'status' => $match->status
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error('Erro ao atualizar match: ' . $e->getMessage());
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
 }
