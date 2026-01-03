@@ -1,9 +1,14 @@
 <?php
 
+use App\Http\Controllers\UserStatisticsController;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\DB;
+
+// Importação dos Controladores
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\GameController;
 use App\Http\Controllers\MatchController;
+use App\Http\Controllers\CoinController;
 use App\Http\Controllers\ShopController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\GameController;
@@ -11,17 +16,12 @@ use App\Http\Controllers\GameController;
 
 /*
 |--------------------------------------------------------------------------
-| API Routes
-|--------------------------------------------------------------------------
-| Todas as rotas da API da plataforma Bisca
-| Autenticação via Laravel Sanctum
+| ROTAS PÚBLICAS (Abertas ou usadas pelo Node.js)
 |--------------------------------------------------------------------------
 */
 
-// =======================
-// AUTH (público)
-// =======================
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/login', [AuthController::class, 'login'])->name('login');
+Route::post('/auth/register', [AuthController::class, 'register'])->name('register');
 
 // Recursos Loja
 Route::get('/image-proxy/{filename}', [ShopController::class, 'getImage']);
@@ -57,15 +57,14 @@ Route::get('/status', function () {
 */
 Route::middleware('auth:sanctum')->group(function () {
 
-    // ---------- AUTH ----------
+    // User Profile
+    Route::get('/users/me', function (Request $request) {
+        return $request->user();
+    });
+    Route::put('/users/me', [AuthController::class, 'updateProfile']);
+    Route::delete('/users/me', [AuthController::class, 'deleteAccount']);
     Route::post('/logout', [AuthController::class, 'logout']);
-    Route::get('/users/me', [AuthController::class, 'me']);
-    Route::put('/users/me', [AuthController::class, 'update']);
 
-    // ---------- SHOP ----------
-    Route::get('/shop', [ShopController::class, 'index']);
-    Route::post('/shop/buy', [ShopController::class, 'buy']);          // compra de itens (coins)
-    Route::post('/shop/purchase', [ShopController::class, 'purchase']); // compra de coins (gateway)
     // Jogo MultiPlayer (Guarda o resultado enviado pelo cliente)
     //Game (Match null)
     Route::get('/games/{id}', [GameController::class, 'show']);
@@ -89,26 +88,28 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Loja (Ações)
     Route::post('/shop/buy', [ShopController::class, 'buy']);
+    Route::post('/shop/purchase', [ShopController::class, 'purchase']);
     Route::post('/shop/equip', [ShopController::class, 'equip']);
 
-    // ---------- IMAGENS (proxy) ----------
-    Route::get('/image-proxy/{filename}', [ShopController::class, 'getImage']);
-    Route::get('/card-image-proxy/{filename}', [ShopController::class, 'getCardImage']);
+    // --- ÁREA DE ADMINISTRAÇÃO ---
+    Route::middleware('admin')->group(function () {
 
         // Histórico Global
         Route::get('/admin/history', [MatchController::class, 'index']); // Reutiliza index (filtra tudo se for admin)
         Route::get('/admin/transactions', [AdminController::class, 'listTransactions']); // Novo: Transações globais
         Route::get('/admin/games', [AdminController::class, 'listGames']); // Novo: Jogos globais
 
-    // ---------- ESTATÍSTICAS ----------
-    Route::get('/statistics', [UserStatisticsController::class, 'index']);
+        // Gestão de Users
+        Route::get('/admin/users', [AdminController::class, 'listUsers']);
+        Route::post('/admin/users', [AdminController::class, 'createAdmin']);
+        Route::patch('/admin/users/{id}/block', [AdminController::class, 'blockUser']);
+        Route::patch('/admin/users/{id}/unblock', [AdminController::class, 'unblockUser']);
+        Route::delete('/admin/users/{id}', [AdminController::class, 'deleteUser']);
 
-    // =======================
-    // ADMIN (restrito)
-    // =======================
-    Route::middleware('isAdmin')->group(function () {
-        Route::get('/admin/users', [AdminController::class, 'users']);
-        Route::get('/admin/games', [AdminController::class, 'games']);
-        Route::get('/admin/transactions', [AdminController::class, 'transactions']);
+        // Estatísticas Globais
+        Route::get('/statistics/global', [AdminController::class, 'getGlobalStats']);
+
+        // Ver stats de um user específico
+        Route::get('/admin/users/{id}/stats', [UserStatisticsController::class, 'index']); // Confirma se tens esta função no AdminController
     });
 });

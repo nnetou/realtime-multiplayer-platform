@@ -242,7 +242,9 @@ class ShopController extends Controller
         }
 
         /* ---------- Payment Gateway ---------- */
-        $gatewayResponse = Http::post(
+        $gatewayResponse = Http::withOptions([
+            'verify' => false // Disable SSL verification for development
+        ])->post(
             'https://dad-payments-api.vercel.app/api/debit',
             [
                 'type' => $method,
