@@ -17,18 +17,69 @@
 
       <div class="flex gap-4 mb-6 border-b border-gray-300 pb-2 overflow-x-auto">
          <button 
-           v-for="tab in ['avatars', 'cards', 'tables']" 
+           v-for="tab in ['avatars', 'cards', 'tables', 'coins']" 
            :key="tab"
            @click="currentTab = tab"
            class="px-6 py-2 rounded-t-lg font-bold capitalize transition-colors"
            :class="currentTab === tab ? 'bg-[#1e8449] text-white' : 'bg-white text-gray-600 hover:bg-gray-200'"
          >
-           {{ tab === 'avatars' ? 'Avatares' : tab === 'cards' ? 'Cartas' : 'Mesas' }}
+           {{ tab === 'avatars' ? 'Avatares' : tab === 'cards' ? 'Cartas' : tab === 'tables' ? 'Mesas' : 'Coins' }}
          </button>
       </div>
 
       <div v-if="loading" class="text-center py-20">A carregar a loja...</div>
 
+      <!-- Formulário para compra de coins -->
+      <div v-else-if="currentTab === 'coins'" class="bg-white p-6 rounded-lg shadow-md">
+        <h2 class="text-2xl font-bold mb-4">Comprar Coins</h2>
+        <form @submit.prevent="purchaseCoins" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Valor em Euros (1-99)</label>
+            <input 
+              type="number" 
+              v-model="euros" 
+              min="1" 
+              max="99" 
+              required 
+              class="w-full p-2 border border-gray-300 rounded-md focus:ring-[#1e8449] focus:border-[#1e8449]"
+            >
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Método de Pagamento</label>
+            <select 
+              v-model="paymentMethod" 
+              required 
+              class="w-full p-2 border border-gray-300 rounded-md focus:ring-[#1e8449] focus:border-[#1e8449]"
+            >
+              <option value="MBWAY">MBWAY</option>
+              <option value="PAYPAL">PAYPAL</option>
+              <option value="IBAN">IBAN</option>
+              <option value="MB">MB</option>
+              <option value="VISA">VISA</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Referência de Pagamento</label>
+            <input 
+              type="text" 
+              v-model="paymentReference" 
+              required 
+              :placeholder="getPlaceholder()"
+              class="w-full p-2 border border-gray-300 rounded-md focus:ring-[#1e8449] focus:border-[#1e8449]"
+            >
+          </div>
+          <p class="text-sm text-gray-600">Coins a receber: {{ euros * 10 }}</p>
+          <button 
+            type="submit" 
+            :disabled="processing" 
+            class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-md disabled:opacity-50"
+          >
+            {{ processing ? 'Processando...' : 'Comprar' }}
+          </button>
+        </form>
+      </div>
+
+      <!-- Grid para outros itens -->
       <div v-else class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
          <Card 
             v-for="item in items[currentTab]" 
@@ -57,7 +108,9 @@
             <CardContent class="p-4">
                <h3 class="font-bold text-lg mb-1">{{ item.name }}</h3>
                <div class="flex justify-between items-center mt-4">
-                  <span v-if="!item.owned" class="text-yellow-600 font-bold text-lg">{{ item.price }} 🪙</span>
+                  <span v-if="!item.owned" class="text-yellow-600 font-bold text-lg">
+                    {{ item.price }} 🪙
+                  </span>
                   <span v-else class="text-gray-500 font-medium text-sm">Adquirido</span>
 
                   <Button 
@@ -79,7 +132,7 @@
                     Equipar
                   </Button>
                   
-                  <div v-else class="text-[#1e8449] font-bold text-sm flex items-center gap-1">
+                  <div v-else-if="item.equipped" class="text-[#1e8449] font-bold text-sm flex items-center gap-1">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
                     Em uso
                   </div>
@@ -102,10 +155,13 @@ import { Card, CardContent } from "@/components/ui/card";
 const authStore = useAuthStore();
 const serverBaseURL = inject('serverBaseURL');
 
-const currentTab = ref('cards'); // Default tab
+const currentTab = ref('cards');
 const loading = ref(true);
 const processing = ref(false);
-const items = ref({ avatars: [], cards: [], tables: [] });
+const items = ref({ avatars: [], cards: [], tables: [], coins: [] });
+const euros = ref(1);
+const paymentMethod = ref('MBWAY');
+const paymentReference = ref('');
 
 // Função auxiliar para converter Hex do Laravel (ex: 0xFF1E8449) para CSS Hex (#1E8449)
 const hexToRgb = (hexStr) => {
@@ -124,8 +180,80 @@ const fetchShop = async () => {
     }
 };
 
+const getPlaceholder = () => {
+    switch (paymentMethod.value) {
+        case 'MBWAY': return '9 dígitos (ex: 912345678)';
+        case 'PAYPAL': return 'Email associado';
+        case 'IBAN': return 'Código IBAN';
+        case 'MB': return 'Referência MB (5-10 dígitos)';
+        case 'VISA': return 'Número do cartão (16 dígitos)';
+        default: return '';
+    }
+};
+
+const purchaseCoins = async () => {
+    if (!euros.value || euros.value < 1 || euros.value > 99) {
+        toast.error('Valor em euros deve ser entre 1 e 99');
+        return;
+    }
+
+    // Validações básicas no frontend (opcional, pois backend valida)
+    switch (paymentMethod.value) {
+        case 'MBWAY':
+            if (!/^\d{9}$/.test(paymentReference.value)) {
+                toast.error('Referência MBWAY deve ter 9 dígitos');
+                return;
+            }
+            break;
+        case 'PAYPAL':
+            if (!/\S+@\S+\.\S+/.test(paymentReference.value)) {
+                toast.error('Referência PAYPAL deve ser um email válido');
+                return;
+            }
+            break;
+        case 'IBAN':
+            if (!/^[A-Z]{2}\d{2}[A-Z0-9]{1,30}$/.test(paymentReference.value)) {
+                toast.error('Referência IBAN inválida');
+                return;
+            }
+            break;
+        case 'MB':
+            if (!/^\d{5,10}$/.test(paymentReference.value)) {
+                toast.error('Referência MB deve ter 5 a 10 dígitos');
+                return;
+            }
+            break;
+        case 'VISA':
+            if (!/^\d{16}$/.test(paymentReference.value)) {
+                toast.error('Referência VISA deve ter 16 dígitos');
+                return;
+            }
+            break;
+    }
+
+    processing.value = true;
+    try {
+        const res = await axios.post(`${serverBaseURL}/api/shop/purchase`, {
+            euros: euros.value,
+            payment_method: paymentMethod.value,
+            payment_reference: paymentReference.value
+        });
+        toast.success(res.data.message);
+        authStore.user.coins_balance = res.data.new_balance;
+        // Reset form
+        euros.value = 1;
+        paymentReference.value = '';
+    } catch (e) {
+        toast.error(e.response?.data?.message || "Erro na compra de coins");
+    } finally {
+        processing.value = false;
+    }
+};
+
 const buyItem = async (item) => {
-    if(!confirm(`Queres comprar "${item.name}" por ${item.price} moedas?`)) return;
+    const confirmMessage = `Queres comprar "${item.name}" por ${item.price} moedas?`;
+    
+    if(!confirm(confirmMessage)) return;
     
     processing.value = true;
     try {
@@ -135,9 +263,7 @@ const buyItem = async (item) => {
         });
         
         toast.success(res.data.message);
-        // Atualiza saldo localmente
-        authStore.user.coins_balance = res.data.new_balance;
-        // Atualiza lista (para marcar como owned)
+        authStore.user.coins_balance -= item.price;
         item.owned = true;
     } catch (e) {
         toast.error(e.response?.data?.message || "Erro na compra");
@@ -156,14 +282,10 @@ const equipItem = async (item) => {
         
         toast.success("Item equipado!");
         
-        // 1. Atualiza UI da Loja
         items.value[currentTab.value].forEach(i => i.equipped = false);
         item.equipped = true;
         
-        // 2. Atualiza a Store (Auth) para o jogo saber o que mudou
-        // Garante que o objeto custom existe
         if (!authStore.user.custom) authStore.user.custom = {};
-
         if (item.type === 'avatar') {
             authStore.user.photo_avatar_filename = item.id;
         } else if (item.type === 'card') {
@@ -171,10 +293,7 @@ const equipItem = async (item) => {
         } else if (item.type === 'table') {
             authStore.user.custom.equipped_table = item.id;
         }
-
-        // Persiste no LocalStorage para não perder ao fazer refresh
         localStorage.setItem('user', JSON.stringify(authStore.user));
-
     } catch (e) {
         console.error(e);
         toast.error(e.response?.data?.message || "Erro ao equipar");
@@ -182,5 +301,6 @@ const equipItem = async (item) => {
         processing.value = false;
     }
 };
+
 onMounted(fetchShop);
 </script>

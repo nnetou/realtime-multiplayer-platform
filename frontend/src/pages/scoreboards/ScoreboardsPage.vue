@@ -91,21 +91,21 @@
           <button 
             class="filter-btn" 
             :class="{ active: globalFilter === 'wins' }"
-            @click="globalFilter = 'wins'"
+            @click="changeFilter('wins')"
           >
             Most Wins
           </button>
           <button 
             class="filter-btn" 
             :class="{ active: globalFilter === 'coins' }"
-            @click="globalFilter = 'coins'"
+            @click="changeFilter('coins')"
           >
             Most Coins
           </button>
           <button 
             class="filter-btn" 
             :class="{ active: globalFilter === 'achievements' }"
-            @click="globalFilter = 'achievements'"
+            @click="changeFilter('achievements')"
           >
             Most Achievements
           </button>
@@ -113,76 +113,130 @@
 
         <!-- LEADERBOARD POR VITÓRIAS -->
         <div v-if="globalFilter === 'wins'" class="leaderboard">
-          <h3 class="leaderboard-title">Top 10 Players by Wins</h3>
+          <h3 class="leaderboard-title">Top Players by Wins</h3>
           <div class="leaderboard-list">
             <div 
               v-for="(player, index) in globalStats.most_wins" 
               :key="player.id"
               class="leaderboard-item"
-              :class="{ 'first': index === 0, 'second': index === 1, 'third': index === 2 }"
+              :class="{ 'first': pagination.current_page === 1 && index === 0, 'second': pagination.current_page === 1 && index === 1, 'third': pagination.current_page === 1 && index === 2, 'current-user': player.id === currentUserId }"
             >
-              <div class="rank">{{ index + 1 }}</div>
+              <div class="rank">{{ (pagination.current_page - 1) * pagination.per_page + index + 1 }}</div>
               <div class="player-info">
                 <div class="player-name">{{ player.nickname || player.name }}</div>
                 <div class="player-stats">{{ player.matches_won_count || 0 }} wins</div>
               </div>
               <div class="trophy">
-                <span v-if="index === 0">🥇</span>
-                <span v-else-if="index === 1">🥈</span>
-                <span v-else-if="index === 2">🥉</span>
-                <span v-else>{{ index + 1 }}</span>
+                <span v-if="pagination.current_page === 1 && index === 0">🥇</span>
+                <span v-else-if="pagination.current_page === 1 && index === 1">🥈</span>
+                <span v-else-if="pagination.current_page === 1 && index === 2">🥉</span>
+                <span v-else>{{ (pagination.current_page - 1) * pagination.per_page + index + 1 }}</span>
               </div>
             </div>
+          </div>
+          <!-- PAGINATION CONTROLS -->
+          <div class="pagination">
+            <button 
+              class="page-btn" 
+              :disabled="!pagination.has_pages || pagination.current_page === 1"
+              @click="changePage(pagination.current_page - 1)"
+            >
+              Previous
+            </button>
+            <span class="page-info">Page {{ pagination.current_page }} of {{ pagination.last_page }}</span>
+            <button 
+              class="page-btn" 
+              :disabled="!pagination.has_more_pages"
+              @click="changePage(pagination.current_page + 1)"
+            >
+              Next
+            </button>
           </div>
         </div>
 
         <!-- LEADERBOARD POR MOEDAS -->
         <div v-if="globalFilter === 'coins'" class="leaderboard">
-          <h3 class="leaderboard-title">Top 10 Players by Coins</h3>
+          <h3 class="leaderboard-title">Top Players by Coins</h3>
           <div class="leaderboard-list">
             <div 
               v-for="(player, index) in globalStats.most_coins" 
               :key="player.id"
               class="leaderboard-item"
-              :class="{ 'first': index === 0, 'second': index === 1, 'third': index === 2 }"
+              :class="{ 'first': paginationCoins.current_page === 1 && index === 0, 'second': paginationCoins.current_page === 1 && index === 1, 'third': paginationCoins.current_page === 1 && index === 2, 'current-user': player.id === currentUserId }"
             >
-              <div class="rank">{{ index + 1 }}</div>
+              <div class="rank">{{ (paginationCoins.current_page - 1) * paginationCoins.per_page + index + 1 }}</div>
               <div class="player-info">
                 <div class="player-name">{{ player.nickname || player.name }}</div>
                 <div class="player-stats">{{ player.coins_balance || 0 }} coins</div>
               </div>
               <div class="trophy">
-                <span v-if="index === 0">💰</span>
-                <span v-else-if="index === 1">💵</span>
-                <span v-else-if="index === 2">💸</span>
+                <span v-if="paginationCoins.current_page === 1 && index === 0">💰</span>
+                <span v-else-if="paginationCoins.current_page === 1 && index === 1">💵</span>
+                <span v-else-if="paginationCoins.current_page === 1 && index === 2">💸</span>
                 <span v-else>🪙</span>
               </div>
             </div>
+          </div>
+          <!-- PAGINATION CONTROLS -->
+          <div class="pagination">
+            <button 
+              class="page-btn" 
+              :disabled="!paginationCoins.has_pages || paginationCoins.current_page === 1"
+              @click="changePage(paginationCoins.current_page - 1)"
+            >
+              Previous
+            </button>
+            <span class="page-info">Page {{ paginationCoins.current_page }} of {{ paginationCoins.last_page }}</span>
+            <button 
+              class="page-btn" 
+              :disabled="!paginationCoins.has_more_pages"
+              @click="changePage(paginationCoins.current_page + 1)"
+            >
+              Next
+            </button>
           </div>
         </div>
 
         <!-- LEADERBOARD POR ACHIEVEMENTS -->
         <div v-if="globalFilter === 'achievements'" class="leaderboard">
-          <h3 class="leaderboard-title">Top 10 Players by Achievements</h3>
+          <h3 class="leaderboard-title">Top Players by Achievements</h3>
           <div class="leaderboard-list">
             <div 
               v-for="(player, index) in globalStats.most_achievements" 
               :key="player.id"
               class="leaderboard-item"
-              :class="{ 'first': index === 0, 'second': index === 1, 'third': index === 2 }"
+              :class="{ 'first': paginationAchievements.current_page === 1 && index === 0, 'second': paginationAchievements.current_page === 1 && index === 1, 'third': paginationAchievements.current_page === 1 && index === 2, 'current-user': player.id === currentUserId }"
             >
-              <div class="rank">{{ index + 1 }}</div>
+              <div class="rank">{{ (paginationAchievements.current_page - 1) * paginationAchievements.per_page + index + 1 }}</div>
               <div class="player-info">
                 <div class="player-name">{{ player.nickname || player.name }}</div>
                 <div class="player-stats">{{ player.achievements_count || 0 }} achievements</div>
               </div>
               <div class="trophy">
-                <span v-if="index === 0">🏆</span>
-                <span v-else-if="index === 1">🎖️</span>
-                <span v-else-if="index === 2">🎗️</span>
+                <span v-if="paginationAchievements.current_page === 1 && index === 0">🏆</span>
+                <span v-else-if="paginationAchievements.current_page === 1 && index === 1">🎖️</span>
+                <span v-else-if="paginationAchievements.current_page === 1 && index === 2">🎗️</span>
                 <span v-else>⭐</span>
               </div>
             </div>
+          </div>
+          <!-- PAGINATION CONTROLS -->
+          <div class="pagination">
+            <button 
+              class="page-btn" 
+              :disabled="!paginationAchievements.has_pages || paginationAchievements.current_page === 1"
+              @click="changePage(paginationAchievements.current_page - 1)"
+            >
+              Previous
+            </button>
+            <span class="page-info">Page {{ paginationAchievements.current_page }} of {{ paginationAchievements.last_page }}</span>
+            <button 
+              class="page-btn" 
+              :disabled="!paginationAchievements.has_more_pages"
+              @click="changePage(paginationAchievements.current_page + 1)"
+            >
+              Next
+            </button>
           </div>
         </div>
       </div>
@@ -199,6 +253,32 @@ const activeTab = ref('personal');
 const globalFilter = ref('wins');
 const loading = ref(false);
 const error = ref(null);
+const currentUserId = ref(null); // Assume this is set from auth, e.g., from a store or API
+const userRank = ref(null);
+const pagination = ref({
+  current_page: 1,
+  last_page: 1,
+  per_page: 10,
+  total: 0,
+  has_pages: false,
+  has_more_pages: false
+});
+const paginationCoins = ref({
+  current_page: 1,
+  last_page: 1,
+  per_page: 10,
+  total: 0,
+  has_pages: false,
+  has_more_pages: false
+});
+const paginationAchievements = ref({
+  current_page: 1,
+  last_page: 1,
+  per_page: 10,
+  total: 0,
+  has_pages: false,
+  has_more_pages: false
+});
 
 const personalStats = ref({
   total_matches: 0,
@@ -216,6 +296,17 @@ const globalStats = ref({
   most_achievements: []
 });
 
+// Function to get current user ID (implement based on your auth system)
+const getCurrentUserId = async () => {
+  try {
+    const response = await axios.get(`${apiBaseURL}/user`); // Assuming an endpoint to get current user
+    currentUserId.value = response.data.id;
+  } catch (err) {
+    console.error('Error getting current user:', err);
+    currentUserId.value = null;
+  }
+};
+
 const loadPersonalStats = async () => {
   loading.value = true;
   error.value = null;
@@ -232,13 +323,50 @@ const loadPersonalStats = async () => {
   }
 };
 
-const loadGlobalStats = async () => {
+const getUserRank = async (category) => {
+  if (!currentUserId.value) return;
+  try {
+    const response = await axios.get(`${apiBaseURL}/scoreboard/user-rank?category=${category}&user_id=${currentUserId.value}`);
+    userRank.value = response.data.rank;
+  } catch (err) {
+    console.error('Error getting user rank:', err);
+    userRank.value = null;
+  }
+};
+
+const loadGlobalStats = async (page = 1) => {
   loading.value = true;
   error.value = null;
   
   try {
-    const response = await axios.get(`${apiBaseURL}/scoreboard/global`);
-    globalStats.value = response.data;
+    const response = await axios.get(`${apiBaseURL}/scoreboard/global?page=${page}`);
+    globalStats.value.most_wins = response.data.most_wins.data;
+    globalStats.value.most_coins = response.data.most_coins.data;
+    globalStats.value.most_achievements = response.data.most_achievements.data;
+    pagination.value = {
+      current_page: response.data.most_wins.current_page,
+      last_page: response.data.most_wins.last_page,
+      per_page: response.data.most_wins.per_page,
+      total: response.data.most_wins.total,
+      has_pages: response.data.most_wins.current_page > 1 || response.data.most_wins.last_page > 1,
+      has_more_pages: response.data.most_wins.current_page < response.data.most_wins.last_page,
+    };
+    paginationCoins.value = {
+      current_page: response.data.most_coins.current_page,
+      last_page: response.data.most_coins.last_page,
+      per_page: response.data.most_coins.per_page,
+      total: response.data.most_coins.total,
+      has_pages: response.data.most_coins.current_page > 1 || response.data.most_coins.last_page > 1,
+      has_more_pages: response.data.most_coins.current_page < response.data.most_coins.last_page,
+    };
+    paginationAchievements.value = {
+      current_page: response.data.most_achievements.current_page,
+      last_page: response.data.most_achievements.last_page,
+      per_page: response.data.most_achievements.per_page,
+      total: response.data.most_achievements.total,
+      has_pages: response.data.most_achievements.current_page > 1 || response.data.most_achievements.last_page > 1,
+      has_more_pages: response.data.most_achievements.current_page < response.data.most_achievements.last_page,
+    };
     console.log('Global stats loaded:', globalStats.value);
   } catch (err) {
     console.error('Error loading global stats:', err);
@@ -248,16 +376,38 @@ const loadGlobalStats = async () => {
   }
 };
 
-watch(activeTab, (newTab) => {
+const changeFilter = async (filter) => {
+  globalFilter.value = filter;
+  if (!currentUserId.value) await getCurrentUserId();
+  if (filter === 'wins') {
+    await loadGlobalStats(1); // Load page 1 first to get pagination
+    await getUserRank('wins');
+    if (userRank.value && userRank.value > 0) {
+      const page = Math.ceil(userRank.value / pagination.value.per_page);
+      if (page !== pagination.value.current_page) {
+        await loadGlobalStats(page);
+      }
+    }
+  } else {
+    await loadGlobalStats(1); // For coins and achievements, load page 1
+  }
+};
+
+const changePage = async (page) => {
+  await loadGlobalStats(page);
+};
+
+watch(activeTab, async (newTab) => {
   if (newTab === 'personal') {
-    loadPersonalStats();
+    await loadPersonalStats();
   } else if (newTab === 'global') {
-    loadGlobalStats();
+    await changeFilter(globalFilter.value);
   }
 });
 
-onMounted(() => {
-  loadPersonalStats();
+onMounted(async () => {
+  await getCurrentUserId();
+  await loadPersonalStats();
 });
 </script>
 
@@ -602,5 +752,44 @@ onMounted(() => {
   font-size: 24px;
   width: 40px;
   text-align: center;
+}
+
+/* Add styles for pagination and current user highlight */
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.page-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 5px;
+  background: #007bff;
+  color: white;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.page-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.page-btn:hover:not(:disabled) {
+  background: #0056b3;
+}
+
+.page-info {
+  font-size: 14px;
+  color: #666;
+}
+
+.leaderboard-item.current-user {
+  background: linear-gradient(135deg, #e1f5fe, #b3e5fc);
+  border-left: 5px solid #2196f3;
+  font-weight: bold;
 }
 </style>

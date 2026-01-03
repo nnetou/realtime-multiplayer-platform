@@ -7,20 +7,27 @@ export const useAPIStore = defineStore('api', () => {
 
     const token = ref(sessionStorage.getItem('token'))
 
-    const postGame = (game) => {
-        return axios.post(`${API_BASE_URL}/matches`, game)
-    }
-
-    // Restaurar token ao iniciar
+    /* ===============================
+       CONFIGURAÇÃO GLOBAL DO TOKEN
+       =============================== */
     if (token.value) {
         axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
     }
 
-    const getGames = () => {
-        return axios.get(`${API_BASE_URL}/games`)
+    /* ===============================
+       MÉTODOS GENÉRICOS (OBRIGATÓRIO)
+       =============================== */
+    const get = (url) => {
+        return axios.get(`${API_BASE_URL}${url}`)
     }
 
-    // AUTH
+    const post = (url, data = {}) => {
+        return axios.post(`${API_BASE_URL}${url}`, data)
+    }
+
+    /* ===============================
+       AUTH
+       =============================== */
     const postLogin = async (credentials) => {
         const response = await axios.post(`${API_BASE_URL}/login`, credentials)
         token.value = response.data.token
@@ -35,7 +42,9 @@ export const useAPIStore = defineStore('api', () => {
         delete axios.defaults.headers.common['Authorization']
     }
 
-    // Users
+    /* ===============================
+       USERS
+       =============================== */
     const getAuthUser = () => {
         return axios.get(`${API_BASE_URL}/users/me`)
     }
@@ -48,13 +57,38 @@ export const useAPIStore = defineStore('api', () => {
         })
     }
 
+    /* ===============================
+       JOGOS / PARTIDAS
+       =============================== */
+    const postGame = (game) => {
+        return axios.post(`${API_BASE_URL}/matches`, game)
+    }
+
+    const getGames = () => {
+        return axios.get(`${API_BASE_URL}/games`)
+    }
+
+    /* ===============================
+       EXPORT
+       =============================== */
     return {
-        postGame,
-        getGames,
+        // genéricos
+        get,
+        post,
+
+        // auth
         postLogin,
         postLogout,
+
+        // user
         getAuthUser,
         putUser,
+
+        // jogos
+        postGame,
+        getGames,
+
+        // estado
         token
     }
 })

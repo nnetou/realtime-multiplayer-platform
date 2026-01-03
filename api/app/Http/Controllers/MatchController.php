@@ -233,12 +233,55 @@ class MatchController extends Controller
         ]);
     }
 
-    public function globalScoreboard()
+    public function globalScoreboard(Request $request)
     {
+        $page = $request->query('page', 1);
+        $perPage = 10;
+
+        $mostWins = User::where('type', 'P')
+            ->withCount('matchesWon')
+            ->withMax('matchesWon as last_win_date', 'ended_at')
+            ->orderByDesc('matches_won_count')
+            ->orderByDesc('last_win_date')
+            ->paginate($perPage, ['*'], 'page', $page);
+
+        $mostCoins = User::where('type', 'P')
+            ->orderByDesc('coins_balance')
+            ->orderByDesc('updated_at')
+            ->paginate($perPage, ['*'], 'page', $page);
+
+        $mostAchievements = User::where('type', 'P')
+            ->withCount('achievements as achievements_count')
+            ->has('achievements')
+            ->orderByDesc('achievements_count')
+            ->orderByDesc('updated_at')
+            ->paginate($perPage, ['*'], 'page', $page);
+
         return response()->json([
-            'most_wins' => User::where('type', 'P')->withCount('matchesWon')->withMax('matchesWon as last_win_date', 'ended_at')->orderByDesc('matches_won_count')->orderByDesc('last_win_date')->get(),
-            'most_coins' => User::where('type', 'P')->orderByDesc('coins_balance')->orderByDesc('updated_at')->get(),
-            'most_achievements' => User::where('type', 'P')->withCount('achievements as achievements_count')->has('achievements')->orderByDesc('achievements_count')->orderByDesc('updated_at')->get(),
+            'most_wins' => $mostWins,
+            'most_coins' => $mostCoins,
+            'most_achievements' => $mostAchievements,
         ]);
+    }
+
+    public function getUserRank(Request $request)
+    {
+        $category = $request->query('category');
+        $userId = $request->query('user_id');
+
+        if ($category === 'wins') {
+            $rank = User::where('type', 'P')
+                ->withCount('matchesWon')
+                ->withMax('matchesWon as last_win_date', 'ended_at')
+                ->orderByDesc('matches_won_count')
+                ->orderByDesc('last_win_date')
+                ->pluck('id')
+                ->search($userId) + 1;
+
+            return response()->json(['rank' => $rank]);
+        }
+
+        // For other categories, return 0 or implement if needed
+        return response()->json(['rank' => 0]);
     }
 }

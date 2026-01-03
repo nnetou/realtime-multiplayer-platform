@@ -96,11 +96,11 @@ export const useGameStore = defineStore('game', {
             const myUserId = authStore.user?.id;
             console.log(`[GameStore] Setting games | Total: ${games.length} | My Socket ID: ${myUserId}`);
 
-            this.myGames = games.filter(game => game.player1Id === myUserId);
-            this.availableGames = games.filter(game => game.player1Id !== myUserId);
+            this.myGames = games.filter(game => game.creatorUserId === myUserId);
+            this.availableGames = games.filter(game => game.creatorUserId !== myUserId);
             console.log(`My Games: ${this.myGames.length} | Available Games: ${this.availableGames.length}`);
             games.forEach(game => {
-                console.log(`Game ID: ${game.id} | Creator: ${game.player1Id}`);
+                console.log(`Game ID: ${game.id} | Creator: ${game.creatorUserId}`);
             });
         },
 
