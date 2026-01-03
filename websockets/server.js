@@ -210,6 +210,67 @@ export function serverStart(port = PORT) {
             }
         });
 
+        socket.on("cancel-game", async (data) => {
+            const gameId = String(data.gameId);
+            const gameIndex = games.findIndex(g => String(g.id) === gameId);
+            
+            console.log(`🔍 Cancel request for ${gameId}, authToken: ${data.authToken ? 'present' : 'MISSING'}`);
+            
+            if (gameIndex === -1) {
+                console.log(`⚠️ Tentativa de cancelar sala inexistente: ${gameId}`);
+                return;
+            }
+            
+            const game = games[gameIndex];
+            
+            // Só o criador pode cancelar e apenas se ainda estiver Pending
+            if (game.creatorId !== socket.id) {
+                console.log(`⚠️ Apenas o criador pode cancelar a sala`);
+                return;
+            }
+            
+            if (game.status !== 'Pending') {
+                console.log(`⚠️ Não é possível cancelar sala em estado ${game.status}`);
+                return;
+            }
+            
+            // Update status in database (usar databaseId e endpoint correto)
+            try {
+                if (game.playMode === 'match' && game.databaseId) {
+                    // Atualizar Match
+                    console.log(`🔄 Atualizando Match ${game.databaseId} para 'Interrupted'...`);
+                    const response = await axios.patch(`${LARAVEL_API}/matches/${game.databaseId}`, {
+                        status: 'Interrupted'
+                    }, {
+                        headers: {
+                            'Authorization': `Bearer ${data.authToken || ''}`
+                        }
+                    });
+                    console.log(`✅ [${game.id}] Match ${game.databaseId} atualizado para 'Interrupted' na BD`, response.data);
+                } else if (game.playMode === 'single_game' && game.databaseId) {
+                    // Atualizar Game
+                    console.log(`🔄 Atualizando Game ${game.databaseId} para 'Interrupted'...`);
+                    const response = await axios.patch(`${LARAVEL_API}/games/${game.databaseId}/status`, {
+                        status: 'Interrupted'
+                    });
+                    console.log(`✅ [${game.id}] Game ${game.databaseId} atualizado para 'Interrupted' na BD`, response.data);
+                } else {
+                    console.log(`⚠️ Sem databaseId para atualizar. playMode: ${game.playMode}, databaseId: ${game.databaseId}`);
+                }
+            } catch (error) {
+                console.error(`❌ Erro ao atualizar status para 'Interrupted':`, error.response?.data || error.message);
+            }
+            
+            // Remover sala da lista
+            games.splice(gameIndex, 1);
+            
+            // Notificar todos os clientes que a sala foi cancelada
+            io.emit("games", games.filter(g => g.status === 'Pending'));
+            socket.emit("game-cancelled", { gameId: gameId });
+            
+            console.log(`🗑️ [${gameId}] Sala cancelada pelo criador`);
+        });
+
         socket.on("play-card", (data) => {
             const game = games.find(g => String(g.id) === String(data.gameId));
             if (!game || !game.state) return;
