@@ -101,9 +101,10 @@
       :playerMarks="store.playerMatchScore"
       :opponentMarks="store.botMatchScore"
       :isMatchMode="isMatchMode"
-      :isMatchOver="isMatchOver"
-      :matchWinner="matchWinner"
-      :allowForfeit="!isMatchOver"
+      :isMatchOver="store.isMatchOver"
+      :matchWinner="store.matchWinner"
+      :allowForfeit="!store.isMatchOver"
+      :awaitingOpponent="store.awaitingOpponent"
       @next-game="handleNextGame"
       @forfeit="showQuitModal = true"
       @back-to-menu="router.push('/')"
@@ -148,8 +149,6 @@ const router = useRouter();
 
 const showResultModal = ref(false);
 const showQuitModal = ref(false);
-const isMatchOver = ref(false);
-const matchWinner = ref(null);
 
 const cardBackUrl = computed(
   () =>
@@ -157,6 +156,7 @@ const cardBackUrl = computed(
       authStore.user?.custom?.equipped_card || "cardflipped.png"
     }`
 );
+
 const tableColor = computed(() => {
   const equipped = authStore.user?.custom?.equipped_table || "green";
   const colors = {
@@ -178,74 +178,62 @@ const handlePlayCard = (card) => {
   store.playCard(card, socket);
 };
 
-// Observar quando o jogo termina
+// ========================================
+// OBSERVAÇÃO DO ESTADO DO JOGO
+// ========================================
+
+// Observar quando o jogo termina (servidor envia game_ended)
 watch(() => store.gameState.gameFinished, (finished) => {
   if (finished && isMatchMode.value) {
-    checkMatchStatus();
-  } else if (finished) {
+    // Mostrar modal de resultados
     showResultModal.value = true;
   }
 });
 
-const checkMatchStatus = () => {
-  // Atualizar marcas baseado no resultado do jogo
-  if (store.gameState.playerScore > 60) {
-    store.playerMatchScore++;
-  } else if (store.gameState.botScore > 60) {
-    store.botMatchScore++;
+// Fechar modal apenas quando ambos estão prontos para novo jogo
+watch(() => store.gameEnded, (ended) => {
+  if (!ended) {
+    // Próximo jogo iniciou, fechar modal
+    showResultModal.value = false;
   }
-  
-  // Verificar se alguém atingiu 4 marcas
-  if (store.playerMatchScore >= 4) {
-    isMatchOver.value = true;
-    matchWinner.value = 'player';
-  } else if (store.botMatchScore >= 4) {
-    isMatchOver.value = true;
-    matchWinner.value = 'opponent';
-  }
-  
-  // Mostrar modal
-  showResultModal.value = true;
-};
+});
+
+// ========================================
+// HANDLERS DOS BOTÕES
+// ========================================
 
 const handleNextGame = () => {
-  showResultModal.value = false;
-  store.resetForNewPlay();
-  
-  // Aqui você pode emitir evento para o servidor iniciar novo jogo
-  if (socket) {
-    socket.emit('request-next-game', { 
-      gameId: store.multiplayerGame?.id 
-    });
-  }
+  // Solicitar próximo jogo (emite socket e fica aguardando oponente)
+  store.requestNextGame(socket);
 };
 
 const handleForfeit = () => {
   showQuitModal.value = false;
-  socketStore.emitForfeitGame(
-    store.multiplayerGame?.id || store.gameState?.id
-  );
-  router.push('/');
+  // Chamar forfeit no store (emite socket e chama API)
+  store.forfeitMatch(socket, currentBet.value);
 };
 
+// ========================================
+// INICIALIZAÇÃO
+// ========================================
+
+onMounted(() => {
+  // Vincular socket à store
+  store.bindSocket(socket);
+  
+  // Configurar listeners de socket (game_ended, opponent_forfeit, start_next_round)
+  store.setupSocketListeners(socket);
+});
+
+// Impedir saída durante jogo ativo sem confirmação
 onBeforeRouteLeave((to, from, next) => {
-  if (store.gameState.gameFinished || isMatchOver.value) {
+  if (store.gameState.gameFinished || store.isMatchOver) {
     next();
     return;
   }
 
-  // Mostrar modal customizado em vez de window.confirm
   showQuitModal.value = true;
   next(false); // Bloqueia navegação
-});
-
-// Remover beforeunload - não é necessário mais
-onMounted(() => {
-  store.bindSocket(socket);
-});
-
-onBeforeUnmount(() => {
-  // Cleanup se necessário
 });
 </script>
 

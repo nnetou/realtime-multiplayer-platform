@@ -45,10 +45,16 @@
         </p>
       </div>
 
+      <!-- Aguardando Oponente -->
+      <div v-if="awaitingOpponent && !isMatchOver" class="awaiting-opponent">
+        <div class="spinner"></div>
+        <p class="awaiting-text">⏳ Aguardando o oponente...</p>
+      </div>
+
       <!-- Botões -->
       <div class="modal-actions">
         <button 
-          v-if="!isMatchOver" 
+          v-if="!isMatchOver && !awaitingOpponent" 
           @click="handleNextGame" 
           class="btn-primary"
         >
@@ -63,7 +69,7 @@
           Voltar ao Menu
         </button>
         <button 
-          v-if="!isMatchOver && allowForfeit" 
+          v-if="!isMatchOver && !awaitingOpponent && allowForfeit" 
           @click="handleForfeit" 
           class="btn-secondary"
         >
@@ -87,6 +93,7 @@ const props = defineProps({
   isMatchOver: { type: Boolean, default: false },
   matchWinner: { type: String, default: null }, // 'player' | 'opponent'
   allowForfeit: { type: Boolean, default: true },
+  awaitingOpponent: { type: Boolean, default: false }, // Novo: indica se aguarda oponente
   autoStartDelay: { type: Number, default: 5 } // segundos até auto-start
 });
 
@@ -130,7 +137,7 @@ const handleClose = () => {
 };
 
 const startCountdown = () => {
-  if (props.isMatchOver || !props.show) return;
+  if (props.isMatchOver || !props.show || props.awaitingOpponent) return;
   
   countdown.value = props.autoStartDelay;
   countdownInterval = setInterval(() => {
@@ -151,7 +158,7 @@ const stopCountdown = () => {
 };
 
 watch(() => props.show, (newVal) => {
-  if (newVal && !props.isMatchOver) {
+  if (newVal && !props.isMatchOver && !props.awaitingOpponent) {
     startCountdown();
   } else {
     stopCountdown();
@@ -360,5 +367,31 @@ onUnmounted(() => {
   font-size: 0.9rem;
   opacity: 0.8;
   margin-right: 8px;
+}
+
+.awaiting-opponent {
+  text-align: center;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(46, 204, 113, 0.2);
+  border-top-color: #2ecc71;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 12px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.awaiting-text {
+  font-size: 1.1rem;
+  color: #2c3e50;
+  font-weight: 500;
 }
 </style>

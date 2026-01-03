@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { useAuthStore } from './auth';
 import { useSocketStore } from './socket';
 import { BiscaEngine } from '../lib/BiscaEngine';
+import axios from 'axios';
 
 const engine = new BiscaEngine();
 
@@ -75,7 +76,13 @@ export const useGameStore = defineStore('game', {
         gameNumber: 1,
         lastGameResult: "",
         moveError: null,
-        matchType: '3'
+        matchType: '3',
+        
+        // Estados de sincronização
+        isMatchOver: false,
+        matchWinner: null, // 'player', 'opponent', null
+        awaitingOpponent: false, // Aguardando confirmação do oponente para próximo jogo
+        gameEnded: false // Diferencia "fim de jogo" de "fim de partida"
     }),
 
     getters: {
@@ -352,6 +359,8 @@ export const useGameStore = defineStore('game', {
                 playMode: this.playMode, winner: null
             };
             this.moveError = null;
+            this.gameEnded = false;
+            this.awaitingOpponent = false;
         },
 
         resetMatch() {
@@ -360,7 +369,136 @@ export const useGameStore = defineStore('game', {
             this.botMatchScore = 0;
             this.gameNumber = 1;
             this.lastGameResult = "";
+            this.isMatchOver = false;
+            this.matchWinner = null;
             this.resetForNewPlay();
+        },
+
+        /* ============================================================
+         * FORFEIT (Desistência) - Multiplayer
+         * ============================================================ */
+        async forfeitMatch(socket, betAmount) {
+            const authStore = useAuthStore();
+            
+            // 1. Emitir socket para o oponente saber que desistimos
+            if (socket) {
+                socket.emit('player_forfeit', {
+                    gameId: this.multiplayerGame?.id
+                });
+            }
+            
+            // 2. Chamar API para registar derrota e descontar moedas
+            try {
+                const response = await axios.post(
+                    `${window.location.origin}/api/game/forfeit`,
+                    {
+                        gameId: this.multiplayerGame?.id,
+                        betAmount: betAmount
+                    }
+                );
+                console.log('Forfeit registado:', response.data);
+            } catch (error) {
+                console.error('Erro ao registar forfeit:', error);
+            }
+            
+            // 3. Atualizar estado local
+            this.gameState.winner = 'opponent';
+            this.isMatchOver = true;
+            this.matchWinner = 'opponent';
+            this.gameState.gameFinished = true;
+        },
+
+        /* ============================================================
+         * PRÓXIMO JOGO - Handshake com Oponente
+         * ============================================================ */
+        requestNextGame(socket) {
+            if (!socket) return;
+            
+            // Entrada em estado de "aguardando oponente"
+            this.awaitingOpponent = true;
+            
+            // Emitir que este jogador está pronto
+            socket.emit('player_ready_next', {
+                gameId: this.multiplayerGame?.id
+            });
+            
+            console.log('📡 Jogador pronto para próximo jogo');
+        },
+
+        setupSocketListeners(socket) {
+            if (!socket) return;
+            
+            // Quando AMBOS jogadores estão prontos, servidor envia este evento
+            socket.on('start_next_round', (data) => {
+                console.log('🎮 Iniciando próximo round:', data);
+                
+                // Apenas aqui reseta para o novo jogo
+                this.resetForNewPlay();
+                
+                // Mantém as marcas da partida
+                // this.playerMatchScore e this.botMatchScore já existem
+                
+                // Atualiza estado do novo jogo
+                if (data.gameState) {
+                    this.updateStateFromServer(data.gameState);
+                }
+                
+                // Modal fecha automaticamente
+                this.gameEnded = false;
+                this.awaitingOpponent = false;
+            });
+            
+            // Oponente desistiu
+            socket.on('opponent_forfeit', (data) => {
+                console.log('🏳️ Oponente desistiu!');
+                
+                // Vitória automática
+                this.gameState.winner = 'me';
+                this.isMatchOver = true;
+                this.matchWinner = 'player';
+                
+                // Incrementar marca se necessário
+                if (this.playerMatchScore < 4) {
+                    this.playerMatchScore++;
+                }
+                
+                // Se atingiu 4 marcas, termina partida
+                if (this.playerMatchScore >= 4) {
+                    this.isMatchOver = true;
+                }
+                
+                this.gameState.gameFinished = true;
+            });
+            
+            // Evento de fim de jogo enviado pelo servidor
+            socket.on('game_ended', (data) => {
+                console.log('🏁 Jogo terminou (servidor):', data);
+                
+                // data.winner: 'player' ou 'opponent'
+                // data.playerScore, data.opponentScore
+                
+                if (data.winner === 'player') {
+                    this.lastGameResult = 'VITORIA!';
+                    this.playerMatchScore++;
+                } else if (data.winner === 'opponent') {
+                    this.lastGameResult = 'DERROTA...';
+                    this.botMatchScore++;
+                } else {
+                    this.lastGameResult = 'EMPATE';
+                }
+                
+                this.gameState.gameFinished = true;
+                this.gameEnded = true;
+                
+                // Verificar se partida acabou
+                if (this.playerMatchScore >= 4) {
+                    this.isMatchOver = true;
+                    this.matchWinner = 'player';
+                } else if (this.botMatchScore >= 4) {
+                    this.isMatchOver = true;
+                    this.matchWinner = 'opponent';
+                }
+            });
         },
 
         async saveGame() { }
