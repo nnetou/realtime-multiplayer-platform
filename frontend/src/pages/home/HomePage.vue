@@ -48,21 +48,26 @@
             <CardDescription class="text-base text-[#7f8c8d] pt-1"
               >Play alone against a bot!</CardDescription
             >
+            <p v-if="isAdmin" class="mt-2 text-sm font-semibold text-red-600">
+              Admin accounts cannot start games.
+            </p>
           </CardHeader>
           <CardContent class="flex justify-center gap-4 mt-auto pt-6">
             <Button
+              :disabled="isAdmin"
+              :class="['home-btn', isAdmin ? 'admin-disabled' : '']"
               @click="startGame('single_game')"
               size="lg"
               variant="secondary"
-              class="home-btn"
             >
               Start Game
             </Button>
             <Button
+              :disabled="isAdmin"
+              :class="['home-btn', isAdmin ? 'admin-disabled' : '']"
               @click="startGame('match')"
               size="lg"
               variant="secondary"
-              class="home-btn"
             >
               Start Match
             </Button>
@@ -79,18 +84,27 @@
             <CardDescription class="text-base text-[#7f8c8d] pt-1"
               >Play against other players!</CardDescription
             >
+            <p v-if="isAdmin" class="mt-2 text-sm font-semibold text-red-600">
+              Admin accounts cannot start games.
+            </p>
           </CardHeader>
           <CardContent class="flex justify-center gap-4 mt-auto pt-6">
             <Button
-              :class="
-                authStore.isAuthenticated ? 'home-btn' : 'login-necessary-btn'
-              "
+              :disabled="isAdmin || !authStore.isAuthenticated"
+              :class="[
+                authStore.isAuthenticated ? 'home-btn' : 'login-necessary-btn',
+                isAdmin ? 'admin-disabled' : ''
+              ]"
               @click="enterLobby"
               size="lg"
               variant="secondary"
             >
               {{
-                authStore.isAuthenticated ? "Go to Lobby" : "Login Necessary"
+                isAdmin
+                  ? 'Admin cannot play'
+                  : authStore.isAuthenticated
+                    ? 'Go to Lobby'
+                    : 'Login Necessary'
               }}
             </Button>
           </CardContent>
@@ -222,11 +236,13 @@ import {
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth.js";
 import { useGameStore } from "@/stores/gameStore";
-import { inject } from "vue"; // <--- IMPORTANTE
+import { inject, computed } from "vue"; // <--- IMPORTANTE
 
 const router = useRouter();
 const authStore = useAuthStore();
 const gameStore = useGameStore();
+
+const isAdmin = computed(() => authStore.user?.type === "A");
 
 // Injeta o URL base que definiste no main.js
 const serverBaseURL = inject("serverBaseURL");
@@ -265,6 +281,9 @@ const goToHistory = () => {
 };
 
 const enterLobby = () => {
+  if (isAdmin.value) {
+    return;
+  }
   if (authStore.isAuthenticated) {
     router.push({ name: "lobby" });
   } else {
@@ -272,6 +291,7 @@ const enterLobby = () => {
   }
 };
 const startGame = (mode) => {
+  if (isAdmin.value) return;
   gameStore.resetForNewPlay();
   gameStore.playMode = mode;
   if (mode === "single_game") {
@@ -323,5 +343,10 @@ const startGame = (mode) => {
   background-color: #374151;
   color: white;
   transform: scale(1.05);
+}
+
+:deep(.admin-disabled) {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 </style>
