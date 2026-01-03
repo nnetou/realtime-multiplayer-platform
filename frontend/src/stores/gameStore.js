@@ -482,21 +482,22 @@ export const useGameStore = defineStore('game', {
                 
                 // Identificar vencedor comparando winnerId com socket.id
                 const amIWinner = (String(data.winnerId) === String(this.socket?.id));
+                const pointsReceived = data.matchPointsReceived || 1;
                 
                 if (amIWinner) {
                     this.lastGameResult = 'VITORIA!';
-                    this.playerMatchScore++;
-                    console.log(`✅ Vitória! Marcas: ${this.playerMatchScore}-${this.botMatchScore}`);
+                    this.playerMatchScore += pointsReceived;
+                    console.log(`✅ Vitória! +${pointsReceived} ponto(s). Marcas: ${this.playerMatchScore}-${this.botMatchScore}`);
                 } else {
                     this.lastGameResult = 'DERROTA...';
-                    this.botMatchScore++;
-                    console.log(`❌ Derrota! Marcas: ${this.playerMatchScore}-${this.botMatchScore}`);
+                    this.botMatchScore += pointsReceived;
+                    console.log(`❌ Derrota! Oponente +${pointsReceived}. Marcas: ${this.playerMatchScore}-${this.botMatchScore}`);
                 }
                 
                 this.gameState.gameFinished = true;
                 this.gameEnded = true;
                 
-                // Verificar se partida acabou (4 marcas)
+                // Verificar se partida acabou (>= 4 marcas)
                 if (this.playerMatchScore >= 4) {
                     this.isMatchOver = true;
                     this.matchWinner = 'player';

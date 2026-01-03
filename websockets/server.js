@@ -42,6 +42,36 @@ function getWinningCard(c1, c2, trunfoSuit) {
 }
 
 // ========================================
+// CALCULAR PONTOS DE PARTIDA (MARCAS)
+// ========================================
+/**
+ * Calcula quantos pontos de partida (marcas) o vencedor recebe
+ * @param {number} winnerScore - Pontuação do vencedor
+ * @param {number} loserScore - Pontuação do perdedor
+ * @param {string} reason - Razão do fim (points, forfeit, disconnect)
+ * @returns {number} - 1, 2 ou 4 pontos de partida
+ */
+function calculateMatchPoints(winnerScore, loserScore, reason) {
+    // Desistência ou Desconexão = 4 pontos (vitória automática)
+    if (reason === 'forfeit' || reason === 'disconnect') {
+        return 4;
+    }
+    
+    // Capote (120-0) = 4 pontos (vitória automática)
+    if (winnerScore === 120 && loserScore === 0) {
+        return 4;
+    }
+    
+    // Rolha (perdedor < 30 pontos) = 2 pontos
+    if (loserScore < 30) {
+        return 2;
+    }
+    
+    // Vitória normal (> 60 pontos) = 1 ponto
+    return 1;
+}
+
+// ========================================
 // INICIALIZAR SALA PARA PRÓXIMO JOGO
 // ========================================
 function initializeRoomState(gameId) {
@@ -92,7 +122,7 @@ function prepareNextRound(game) {
 }
 
 // === TRANSAÇÃO DE DINHEIRO ===
-async function processGameEnd(io, game, winnerSocketId, reason) {
+async function processGameEnd(io, game, winnerSocketId, reason, pointsAwarded = 1) {
     if (!game || game.status === 'Ended') return;
 
     const isCreatorWinner = (String(winnerSocketId) === String(game.creatorId));
@@ -108,6 +138,16 @@ async function processGameEnd(io, game, winnerSocketId, reason) {
 
     if (isDefinitiveEnd) {
         game.status = 'Ended';
+
+        // Update status in database
+        try {
+            await axios.patch(`${LARAVEL_API}/games/${game.id}/status`, {
+                status: 'Ended'
+            });
+            console.log(`✅ [${game.id}] Status atualizado para 'Ended' na BD`);
+        } catch (error) {
+            console.error(`❌ Erro ao atualizar status para 'Ended':`, error.message);
+        }
 
         if (winnerUserId && loserUserId && game.betAmount > 0) {
             try {
@@ -138,6 +178,7 @@ async function processGameEnd(io, game, winnerSocketId, reason) {
         winner: isCreatorWinner ? 'player1' : 'player2',
         reason: reason,
         betAmount: game.betAmount,
+        matchPointsReceived: pointsAwarded,
         scores: {
             p1Score: p1Score,
             p2Score: p2Score
@@ -207,12 +248,22 @@ export function serverStart(port = PORT) {
             }
         });
 
-        socket.on("join-game", (data) => {
+        socket.on("join-game", async (data) => {
             const game = games.find(g => String(g.id) === String(data.gameId));
             if (game && !game.player2 && game.status === 'Pending') {
                 game.player2 = socket.id;
                 game.player2UserId = data.userId; // ID DO LARAVEL
                 game.status = 'Playing';
+
+                // Update status in database
+                try {
+                    await axios.patch(`${LARAVEL_API}/games/${game.id}/status`, {
+                        status: 'Playing'
+                    });
+                    console.log(`✅ [${game.id}] Status atualizado para 'Playing' na BD`);
+                } catch (error) {
+                    console.error(`❌ Erro ao atualizar status para 'Playing':`, error.message);
+                }
 
                 const fullDeck = createDeck();
                 const p1Hand = fullDeck.splice(0, 3);
@@ -275,8 +326,13 @@ export function serverStart(port = PORT) {
                     }
 
                     if ((game.state.p1Score + game.state.p2Score) === 120) {
-                        const w = (game.state.p1Score > game.state.p2Score) ? game.creatorId : game.player2;
-                        processGameEnd(io, game, w, 'points');
+                        const isP1Winner = (game.state.p1Score > game.state.p2Score);
+                        const w = isP1Winner ? game.creatorId : game.player2;
+                        const winnerScore = isP1Winner ? game.state.p1Score : game.state.p2Score;
+                        const loserScore = isP1Winner ? game.state.p2Score : game.state.p1Score;
+                        const matchPoints = calculateMatchPoints(winnerScore, loserScore, 'points');
+                        console.log(`🎯 Jogo terminou: ${winnerScore}-${loserScore} = ${matchPoints} ponto(s) de partida`);
+                        processGameEnd(io, game, w, 'points', matchPoints);
                     }
                 }, 1500);
             }
@@ -390,9 +446,9 @@ export function serverStart(port = PORT) {
                 forfeitPlayerId: socket.id
             });
 
-            // Processar fim de jogo (vitória por desistência)
+            // Processar fim de jogo (vitória por desistência = 4 pontos)
             const winnerId = isCreatorForfeit ? game.player2 : game.creatorId;
-            processGameEnd(io, game, winnerId, 'forfeit');
+            processGameEnd(io, game, winnerId, 'forfeit', 4);
 
             // Limpar estado de sala
             if (gameRoomState[gameId]) {
@@ -422,14 +478,24 @@ export function serverStart(port = PORT) {
                 console.log(`⚠️ [${game.id}] Jogador desconectou durante 'Aguardando Oponente'`);
             }
 
-            // Processar fim de jogo se estavam jogando
+            // Processar fim de jogo se estavam jogando (desconexão = 4 pontos)
             if (game.status === 'Playing') {
                 const winnerId = (socket.id === game.creatorId) ? game.player2 : game.creatorId;
-                processGameEnd(io, game, winnerId, 'disconnect');
+                processGameEnd(io, game, winnerId, 'disconnect', 4);
                 console.log(`🏁 [${game.id}] Jogo terminado por desconexão`);
             } 
             // Se era jogo pendente (aguardando jogador 2)
             else if (game.status === 'Pending' && game.creatorId === socket.id) {
+                // Update status in database before removing from memory
+                try {
+                    await axios.patch(`${LARAVEL_API}/games/${game.id}/status`, {
+                        status: 'Interrupted'
+                    });
+                    console.log(`✅ [${game.id}] Status atualizado para 'Interrupted' na BD`);
+                } catch (error) {
+                    console.error(`❌ Erro ao atualizar status para 'Interrupted':`, error.message);
+                }
+
                 games.splice(games.indexOf(game), 1);
                 io.emit("games", games.filter(g => g.status === 'Pending'));
                 console.log(`🗑️ [${game.id}] Jogo pendente removido`);
