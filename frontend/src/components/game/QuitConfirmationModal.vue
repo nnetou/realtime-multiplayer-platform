@@ -2,7 +2,7 @@
   <div v-if="show" class="modal-overlay" @click.self="handleCancel">
     <div class="modal-content">
       <div class="modal-header">
-        <h2 class="modal-title">⚠️ Desistir da Partida?</h2>
+        <h2 class="modal-title">Desistir da Partida?</h2>
       </div>
       
       <div class="modal-body">
