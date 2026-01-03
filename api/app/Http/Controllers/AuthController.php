@@ -77,6 +77,7 @@ class AuthController extends Controller
                 'created_at' => $user->created_at,
                 'type' => $user->type,
                 'photo_avatar_filename' => $user->photo_avatar_filename,
+                'custom' => $user->custom,
             ]
         ]);
     }

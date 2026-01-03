@@ -2,22 +2,38 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\DB;
 
+// Importação dos Controladores
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\MatchController;
 use App\Http\Controllers\CoinController;
 use App\Http\Controllers\ShopController;
 use App\Http\Controllers\AdminController;
-// use App\Http\Controllers\UserStatisticsController; // removed stats route
+// use App\Http\Controllers\UserStatisticsController; // Comenta isto se não tiveres o ficheiro
+
+/*
+|--------------------------------------------------------------------------
+| ROTAS PÚBLICAS (Abertas ou usadas pelo Node.js)
+|--------------------------------------------------------------------------
+*/
 
 Route::post('/login', [AuthController::class, 'login'])->name('login');
 Route::post('/auth/register', [AuthController::class, 'register'])->name('register');
 
-// 2. ROTAS PÚBLICAS
+// Recursos Loja
 Route::get('/image-proxy/{filename}', [ShopController::class, 'getImage']);
 Route::get('/card-image-proxy/{filename}', [ShopController::class, 'getCardImage']);
+Route::get('/shop', [ShopController::class, 'index']);
+
+// Scoreboards Públicos
 Route::get('/scoreboard/global', [MatchController::class, 'globalScoreboard']);
-// Só para checkar o estado da API na página de About
+
+// *** ROTA CRÍTICA PARA O NODE.JS (MULTIPLAYER) ***
+// Tem de ser pública porque o Node.js não envia token de utilizador
+Route::post('/game/settle', [MatchController::class, 'settleBet']);
+
+// Health Check
 Route::get('/status', function () {
     $status = ['api' => 'ok'];
     try {
@@ -26,49 +42,60 @@ Route::get('/status', function () {
     } catch (\Throwable $e) {
         $status['database'] = 'error';
     }
-
-    return response()->json([
-        'status' => $status,
-        'timestamp' => now()->toISOString(),
-    ], 200);
+    return response()->json(['status' => $status, 'timestamp' => now()->toISOString()], 200);
 });
 
-// *** IMPORTANTE: Esta rota deve estar AQUI (Pública) ***
-Route::get('/shop', [ShopController::class, 'index']);
-
-// 3. ROTAS PROTEGIDAS
+/*
+|--------------------------------------------------------------------------
+| ROTAS PROTEGIDAS (Requerem Login)
+|--------------------------------------------------------------------------
+*/
 Route::middleware('auth:sanctum')->group(function () {
+    
+    // User Profile
     Route::get('/users/me', function (Request $request) {
         return $request->user();
     });
     Route::put('/users/me', [AuthController::class, 'updateProfile']);
+    Route::delete('/users/me', [AuthController::class, 'deleteAccount']);
     Route::post('/logout', [AuthController::class, 'logout']);
 
+    // Jogo Singleplayer (Guarda o resultado enviado pelo cliente)
     Route::post('/matches', [MatchController::class, 'store']);
+    
+    // Histórico e Stats
     Route::get('/history/matches', [MatchController::class, 'index']);
+    
+    // Mapeamento das Estatísticas Pessoais (Usamos o MatchController que já tem a lógica)
+    Route::get('/me/statistics', [MatchController::class, 'personalScoreboard']);
     Route::get('/scoreboard/personal', [MatchController::class, 'personalScoreboard']);
 
+    // Moedas e Achievements
     Route::get('/me/coins', [CoinController::class, 'getBalance']);
     Route::get('/me/coin-transactions', [CoinController::class, 'getTransactions']);
     Route::get('/me/achievements', [AuthController::class, 'getAchievements']);
-    Route::delete('/users/me', [AuthController::class, 'deleteAccount']);
 
-    // Ações de compra continuam protegidas
+    // Loja (Ações)
     Route::post('/shop/buy', [ShopController::class, 'buy']);
     Route::post('/shop/equip', [ShopController::class, 'equip']);
 
-    // --- ROTA PROTEGIDA PARA ADMINS ---
-    // O pedido passará primeiro pelo 'auth:sanctum' e depois pelo nosso middleware 'admin'
-    Route::get('/admin/history', [MatchController::class, 'allMatchesHistory'])
-        ->middleware('admin');
+    // --- ÁREA DE ADMINISTRAÇÃO ---
+    Route::middleware('admin')->group(function () {
+        
+        // Histórico Global
+        Route::get('/admin/history', [MatchController::class, 'index']); // Reutiliza index (filtra tudo se for admin)
+        
+        // Gestão de Users
+        Route::get('/admin/users', [AdminController::class, 'listUsers']);
+        Route::post('/admin/users', [AdminController::class, 'createAdmin']);
+        Route::patch('/admin/users/{id}/block', [AdminController::class, 'blockUser']);
+        Route::patch('/admin/users/{id}/unblock', [AdminController::class, 'unblockUser']);
+        Route::delete('/admin/users/{id}', [AdminController::class, 'deleteUser']);
 
-    // --- ADMIN USER MANAGEMENT ---
-    Route::middleware('admin')->prefix('admin')->group(function () {
-        Route::get('/users', [AdminController::class, 'listUsers']);
-        Route::patch('/users/{id}/block', [AdminController::class, 'blockUser']);
-        Route::patch('/users/{id}/unblock', [AdminController::class, 'unblockUser']);
-        Route::delete('/users/{id}', [AdminController::class, 'deleteUser']);
-        Route::post('/users', [AdminController::class, 'createAdmin']);
+        // Estatísticas Globais
+        Route::get('/statistics/global', [AdminController::class, 'getGlobalStats']);
+        
+        // Ver stats de um user específico
+        Route::get('/admin/users/{id}/stats', [AdminController::class, 'getUserStats']); // Confirma se tens esta função no AdminController
     });
 });
-

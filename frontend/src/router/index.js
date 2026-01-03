@@ -14,6 +14,9 @@ import ProfilePage from '../pages/profile/ProfilePage.vue'
 import ProfileEditPage from '../pages/profile/ProfileEditPage.vue'
 import AdminHistoryPage from '../pages/history/AdminHistoryPage.vue'
 import AdminUserList from '../pages/admin/AdminUserList.vue'
+import ShopPage from '../pages/shop/ShopPage.vue'
+import CoinTransactionsPage from '../pages/profile/CoinTransactionsPage.vue'
+import StatisticsPage from '../pages/profile/StatisticsPage.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -22,6 +25,12 @@ const router = createRouter({
       path: '/',
       name: 'home',
       component: HomePage,
+    },
+    {
+      path: '/statistics',
+      name: 'statistics',
+      component: StatisticsPage,
+      meta: { requiresAuth: true },
     },
     {
       path: '/game',
@@ -83,6 +92,12 @@ const router = createRouter({
       name: 'register',
       component: RegisterPage,
     },
+    { 
+      path: '/shop', 
+      name: 'shop', 
+      component: ShopPage,
+      meta: { requiresAuth: true }
+    },
     {
       path: '/profile',
       name: 'profile',
@@ -93,6 +108,12 @@ const router = createRouter({
       path: '/profile/edit',
       name: 'profile-edit',
       component: ProfileEditPage,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/profile/transactions',
+      name: 'coin-transactions',
+      component: CoinTransactionsPage,
       meta: { requiresAuth: true },
     },
     {

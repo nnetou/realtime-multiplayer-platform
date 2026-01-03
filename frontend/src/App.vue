@@ -45,24 +45,73 @@
         </NavigationMenuItem>
 
         <NavigationMenuItem v-if="authStore.user">
-          <NavigationMenuLink
+          <NavigationMenuTrigger
             class="user-badge-btn flex items-center gap-2 pr-4 cursor-pointer"
-            as-child
           >
-            <RouterLink :to="{ name: 'profile' }">
-              <img
-                :src="getUserAvatar()"
-                alt="Avatar"
-                class="h-6 w-6 rounded-full border border-gray-300 bg-white object-cover"
-                @error="handleImageError"
-              />
-              <span class="hidden md:inline">
-                {{
-                  authStore.user.nickname || authStore.user.name || "My Profile"
-                }}
-              </span>
-            </RouterLink>
-          </NavigationMenuLink>
+            <img
+              :src="getUserAvatar()"
+              alt="Avatar"
+              class="h-6 w-6 rounded-full border border-gray-300 bg-white object-cover"
+              @error="handleImageError"
+            />
+            <span class="hidden md:inline font-semibold">
+              {{ authStore.user.nickname || authStore.user.name }}
+            </span>
+          </NavigationMenuTrigger>
+
+          <NavigationMenuContent>
+            <ul class="grid w-[200px] gap-1 p-2 bg-white rounded-md shadow-lg">
+              <li>
+                <RouterLink
+                  :to="{ name: 'profile' }"
+                  class="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-slate-100 hover:text-accent-foreground"
+                >
+                  👤 O meu Perfil
+                </RouterLink>
+              </li>
+              <li>
+                <RouterLink
+                  :to="{ name: 'coin-transactions' }"
+                  class="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-slate-100 hover:text-accent-foreground"
+                >
+                  💰 Transações
+                </RouterLink>
+              </li>
+              <li>
+                <RouterLink :to="{ name: 'statistics' }" class="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-slate-100 hover:text-accent-foreground text-gray-700 font-medium">
+                  📊 Estatísticas
+                </RouterLink>
+              </li>
+              <li>
+                <RouterLink
+                  :to="
+                    authStore.type === 'A'
+                      ? { name: 'admin-history' }
+                      : { name: 'history' }
+                  "
+                  class="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-slate-100 hover:text-accent-foreground"
+                >
+                  📜 Histórico Jogos
+                </RouterLink>
+              </li>
+              <li>
+                <RouterLink
+                  :to="{ name: 'scoreboards' }"
+                  class="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-slate-100 hover:text-accent-foreground"
+                >
+                  🏆 Leaderboard
+                </RouterLink>
+              </li>
+              <li>
+                <RouterLink
+                  :to="{ name: 'shop' }"
+                  class="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-slate-100 hover:text-accent-foreground font-bold text-[#1e8449]"
+                >
+                  🛒 Loja
+                </RouterLink>
+              </li>
+            </ul>
+          </NavigationMenuContent>
         </NavigationMenuItem>
 
         <NavigationMenuItem>

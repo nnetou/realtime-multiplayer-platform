@@ -1,5 +1,9 @@
 <template>
-  <div v-if="store.gameState && store.gameState.botHand" class="game-page">
+  <div 
+    v-if="store.gameState && store.gameState.botHand" 
+    class="game-page"
+    :style="{ backgroundColor: tableColor }"
+  >
     
     <div class="top-section bot-hand-area">
       <div class="hand-container opponent-hand">
@@ -124,39 +128,56 @@
       </div>
     </div>
   </div>
-   <div v-else class="h-screen w-full flex items-center justify-center bg-[#1e8449] text-white">
+   <div 
+    v-else 
+    class="h-screen w-full flex items-center justify-center text-white"
+    :style="{ backgroundColor: tableColor }"
+   >
       <h2 class="text-2xl font-bold animate-pulse">A carregar jogo...</h2>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, inject } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useGameStore } from "../../stores/gameStore";
 import { useAPIStore } from "../../stores/api";
+import { useAuthStore } from "../../stores/auth"; // <--- NOVO IMPORT
 import GameCard from "../../components/game/GameCard.vue";
 import { toast } from "vue-sonner";
 
 const store = useGameStore();
 const apiStore = useAPIStore();
+const authStore = useAuthStore(); // <--- INSTANCIAR STORE
 const router = useRouter();
 const route = useRoute();
+const serverBaseURL = inject("serverBaseURL"); // <--- INJETAR BASE URL
 
-const API_URL = "http://localhost:8000";
-const cardBackUrl = `${API_URL}/images/cartas/playing-cards-master/cardflipped.png`;
+// --- LÓGICA DE CUSTOMIZAÇÃO (NOVO) ---
+const cardBackUrl = computed(() => {
+    const filename = authStore.user?.custom?.equipped_card || 'cardflipped.png';
+    // Usa a rota proxy da API para buscar a imagem correta
+    return `${serverBaseURL}/api/card-image-proxy/${filename}`;
+});
+
+const tableColor = computed(() => {
+    const equipped = authStore.user?.custom?.equipped_table || 'green';
+    const colors = {
+        'green': '#1E8449',
+        'red':   '#922B21',
+        'blue':  '#1F618D',
+        'black': '#17202A'
+    };
+    return colors[equipped] || '#1E8449';
+});
+// -------------------------------------
 
 const playMode = computed(() => route.meta.playMode);
 const showModeSelection = ref(false);
 
 const selectMode = (mode) => {
   store.matchType = mode;
-  
-  // TENTATIVA DE INICIAR O JOGO
-  // Se startNextGame existisse, chamava-se aqui.
-  // Como não existe, chamamos o reset e esperamos que o store tenha lógica interna
   store.startSinglePlayerGame();  
-  // Se o jogo continuar vazio depois disto, é porque FALTA a função de dar cartas no store.
-  
   showModeSelection.value = false;
 };
 
@@ -164,7 +185,6 @@ const handleForfeit = async () => {
   if (typeof store.forfeitMatch === 'function') store.forfeitMatch();
   store.resetForNewPlay();
   
-  // Lógica de desistência
   const durationSeconds = 10; 
   const gamePayload = {
     type: store.matchType || '3',
@@ -187,14 +207,9 @@ const handleForfeit = async () => {
 
 onMounted(() => {
   if (playMode.value) store.playMode = playMode.value;
-
-  // Garante que o gameState existe
   if (!store.gameState || !store.gameState.deck) {
      store.resetForNewPlay();
   }
-
-  // === CORREÇÃO CRÍTICA ===
-  // Forçar o menu a aparecer se não houver cartas, ignorando pontuações
   if (!store.gameState.deck || store.gameState.deck.length === 0) {
     showModeSelection.value = true;
   }
@@ -202,9 +217,21 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* Mantive o CSS original */
 :root { --card-width: 95px; --card-height: 135px; }
-.game-page { background-color: #1e8449; height: 100vh; width: 100vw; display: flex; flex-direction: column; justify-content: space-between; padding: 10px; box-sizing: border-box; color: white; overflow: hidden; }
+
+/* REMOVIDO: background-color: #1e8449; */
+.game-page { 
+    height: 100vh; 
+    width: 100vw; 
+    display: flex; 
+    flex-direction: column; 
+    justify-content: space-between; 
+    padding: 10px; 
+    box-sizing: border-box; 
+    color: white; 
+    overflow: hidden; 
+}
+/* ... resto do CSS igual ... */
 .card-slot { width: 95px; height: 135px; display: flex; justify-content: center; align-items: center; }
 .card-slot img { width: 100%; height: 100%; object-fit: contain; border-radius: 8px; box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3); }
 .top-section { height: 150px; display: flex; justify-content: center; align-items: flex-start; }
