@@ -5,6 +5,11 @@ const LARAVEL_API = "http://localhost:8000/api";
 const PORT = 3000;
 const games = [];
 
+// ========================================
+// ESTRUTURA DE DADOS DE SINCRONIZAÇÃO
+// ========================================
+const gameRoomState = {}; // { [gameId]: { readyPlayers: Set(), roundState: {...} } }
+
 const SUITS = ['hearts', 'diamonds', 'clubs', 'spades'];
 const RANKS = { '2': { value: 0, order: 1 }, '3': { value: 10, order: 10 }, '4': { value: 0, order: 2 }, '5': { value: 0, order: 3 }, '6': { value: 0, order: 4 }, '7': { value: 10, order: 9 }, 'Q': { value: 2, order: 5 }, 'J': { value: 3, order: 6 }, 'K': { value: 4, order: 7 }, 'A': { value: 11, order: 8 } };
 
@@ -34,6 +39,56 @@ function getWinningCard(c1, c2, trunfoSuit) {
         return val1 > val2 ? c1 : c2;
     }
     return c1;
+}
+
+// ========================================
+// INICIALIZAR SALA PARA PRÓXIMO JOGO
+// ========================================
+function initializeRoomState(gameId) {
+    if (!gameRoomState[gameId]) {
+        gameRoomState[gameId] = {
+            readyPlayers: new Set(),
+            roundState: null
+        };
+    }
+}
+
+// ========================================
+// RESETAR PRONTO PARA NOVA RODADA
+// ========================================
+function resetRoundReady(gameId) {
+    if (gameRoomState[gameId]) {
+        gameRoomState[gameId].readyPlayers.clear();
+    }
+}
+
+// ========================================
+// GERAR NOVO BARALHO E DISTRIBUIR
+// ========================================
+function prepareNextRound(game) {
+    if (!game || !game.state) return null;
+
+    const fullDeck = createDeck();
+    const p1Hand = fullDeck.splice(0, 3);
+    const p2Hand = fullDeck.splice(0, 3);
+    const trunfo = fullDeck[0];
+
+    // Reset dos pontos PARCIAIS do jogo (mantém as marcas da partida)
+    game.state.deck = fullDeck;
+    game.state.trunfo = trunfo;
+    game.state.trunfoSuit = trunfo.suit;
+    game.state.p1Hand = p1Hand;
+    game.state.p2Hand = p2Hand;
+    game.state.table = [];
+    game.state.p1Score = 0;  // Reset dos pontos parciais
+    game.state.p2Score = 0;
+    game.state.trickStarter = game.creatorId;
+
+    return {
+        id: game.id,
+        trunfo: trunfo,
+        deckCount: game.state.deck.length
+    };
 }
 
 // === TRANSAÇÃO DE DINHEIRO ===
@@ -212,14 +267,145 @@ export function serverStart(port = PORT) {
             }
         });
 
+        /* ================================================
+         * PRÓXIMO JOGO - SINCRONIZAÇÃO
+         * ================================================ */
+        socket.on("player_ready_next", (data) => {
+            const gameId = String(data.gameId);
+            const game = games.find(g => String(g.id) === gameId);
+
+            if (!game) {
+                console.error(`❌ [player_ready_next] Sala não encontrada: ${gameId}`);
+                return;
+            }
+
+            // Inicializar estado de sala se não existir
+            initializeRoomState(gameId);
+
+            const roomState = gameRoomState[gameId];
+
+            console.log(`📡 [${gameId}] ${socket.id} pronto para próximo jogo`);
+
+            // Adicionar jogador à lista de prontos
+            roomState.readyPlayers.add(socket.id);
+            console.log(`📊 Prontos: ${roomState.readyPlayers.size}/2`);
+
+            // VERIFICAÇÃO CRÍTICA: Ambos os jogadores prontos?
+            if (roomState.readyPlayers.size === 2) {
+                console.log(`✅ [${gameId}] AMBOS PRONTOS! Iniciando novo round...`);
+
+                // 1. Preparar novo baralho
+                const roundInfo = prepareNextRound(game);
+
+                if (!roundInfo) {
+                    console.error(`❌ Erro ao preparar novo round`);
+                    return;
+                }
+
+                // 2. Limpar lista de prontos para a próxima vez
+                resetRoundReady(gameId);
+
+                // 3. Enviar novo estado para ambos os jogadores
+                io.to(game.creatorId).emit("start_next_round", {
+                    gameState: {
+                        playerHand: game.state.p1Hand,
+                        trunfo: roundInfo.trunfo,
+                        deckCount: roundInfo.deckCount,
+                        playerScore: 0,
+                        opponentScore: 0,
+                        playerTurn: true,
+                        gameFinished: false
+                    }
+                });
+
+                io.to(game.player2).emit("start_next_round", {
+                    gameState: {
+                        playerHand: game.state.p2Hand,
+                        trunfo: roundInfo.trunfo,
+                        deckCount: roundInfo.deckCount,
+                        playerScore: 0,
+                        opponentScore: 0,
+                        playerTurn: false,
+                        gameFinished: false
+                    }
+                });
+
+                console.log(`🎮 [${gameId}] Novo round iniciado!`);
+            }
+        });
+
+        /* ================================================
+         * DESISTÊNCIA (FORFEIT) - COM SINCRONIZAÇÃO
+         * ================================================ */
+        socket.on("player_forfeit", (data) => {
+            const gameId = String(data.gameId);
+            const game = games.find(g => String(g.id) === gameId);
+
+            if (!game) {
+                console.error(`❌ [player_forfeit] Sala não encontrada: ${gameId}`);
+                return;
+            }
+
+            console.log(`🏳️ [${gameId}] ${socket.id} desistiu da partida`);
+
+            // Determinar o oponente
+            const isCreatorForfeit = (socket.id === game.creatorId);
+            const opponentId = isCreatorForfeit ? game.player2 : game.creatorId;
+
+            // Notificar oponente que este jogador desistiu
+            io.to(opponentId).emit("opponent_forfeit", {
+                gameId: gameId,
+                forfeitPlayerId: socket.id
+            });
+
+            // Processar fim de jogo (vitória por desistência)
+            const winnerId = isCreatorForfeit ? game.player2 : game.creatorId;
+            processGameEnd(io, game, winnerId, 'forfeit');
+
+            // Limpar estado de sala
+            if (gameRoomState[gameId]) {
+                delete gameRoomState[gameId];
+            }
+        });
+
         socket.on("disconnect", () => {
+            console.log(`🔌 ${socket.id} desconectou`);
+
+            // Procurar jogo deste jogador
             const game = games.find(g => (g.creatorId === socket.id || g.player2 === socket.id));
-            if (game && game.status === 'Playing') {
+
+            if (!game) return;
+
+            // Se estava em estado de "Aguardando Oponente" (ready)
+            if (gameRoomState[game.id] && gameRoomState[game.id].readyPlayers.has(socket.id)) {
+                const opponentId = (socket.id === game.creatorId) ? game.player2 : game.creatorId;
+                
+                // Notificar oponente que foi desconectado
+                io.to(opponentId).emit("opponent_forfeit", {
+                    gameId: game.id,
+                    forfeitPlayerId: socket.id,
+                    reason: "disconnect"
+                });
+
+                console.log(`⚠️ [${game.id}] Jogador desconectou durante 'Aguardando Oponente'`);
+            }
+
+            // Processar fim de jogo se estavam jogando
+            if (game.status === 'Playing') {
                 const winnerId = (socket.id === game.creatorId) ? game.player2 : game.creatorId;
                 processGameEnd(io, game, winnerId, 'disconnect');
-            } else if (game && game.status === 'Pending' && game.creatorId === socket.id) {
+                console.log(`🏁 [${game.id}] Jogo terminado por desconexão`);
+            } 
+            // Se era jogo pendente (aguardando jogador 2)
+            else if (game.status === 'Pending' && game.creatorId === socket.id) {
                 games.splice(games.indexOf(game), 1);
                 io.emit("games", games.filter(g => g.status === 'Pending'));
+                console.log(`🗑️ [${game.id}] Jogo pendente removido`);
+            }
+
+            // Limpar estado de sala
+            if (gameRoomState[game.id]) {
+                delete gameRoomState[game.id];
             }
         });
 
