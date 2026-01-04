@@ -30,7 +30,6 @@ class User extends Authenticatable
 
     protected $appends = ['photo_url'];
 
-    // Helper para devolver o URL completo da imagem
     protected function photoUrl(): Attribute
     {
         return Attribute::make(

@@ -95,12 +95,7 @@ class MatchController extends Controller
                 $match->stake = $simulationDelta;
                 $match->save();
 
-                // Gravar Game (Trick breakdown) se existir
-                if (!empty($validated['custom']['trick_breakdown'])) {
-                    // ... (Tua lógica de tricks mantida) ...
-                }
 
-                // Transação de moedas
                 if ($simulationDelta != 0) {
                     $typeName = ($simulationDelta > 0) ? 'Bonus' : 'Game fee';
                     $transType = CoinTransactionType::where('name', $typeName)->first() ?? CoinTransactionType::first();
@@ -124,10 +119,8 @@ class MatchController extends Controller
         }
     }
 
-    // --- FUNÇÃO NOVA PARA O MULTIPLAYER (CHAMADA PELO NODE.JS) ---
     public function settleBet(Request $request)
     {
-        // 1. Validar dados (Relaxamos as regras para aceitar forfeits)
         $validated = $request->validate([
             'winner_id' => 'required|integer',
             'loser_id' => 'required|integer',
@@ -151,17 +144,13 @@ class MatchController extends Controller
 
                 $amount = (int) $validated['amount'];
 
-                // --- 1. TRANSFERÊNCIA DE MOEDAS ---
                 if ($amount > 0) {
-                    // Retirar do perdedor (Permite saldo negativo? Se não, adicionar verificação)
                     $loser->coins_balance -= $amount;
                     $loser->save();
 
-                    // Adicionar ao vencedor
                     $winner->coins_balance += $amount;
                     $winner->save();
 
-                    // Transação - Perda
                     $typeBet = CoinTransactionType::firstOrCreate(['name' => 'Bet Loss']);
                     CoinTransaction::create([
                         'user_id' => $loser->id,
@@ -171,7 +160,6 @@ class MatchController extends Controller
                         'custom' => ['opponent_id' => $winner->id, 'reason' => $validated['reason'] ?? 'loss']
                     ]);
 
-                    // Transação - Ganho
                     $typeWin = CoinTransactionType::firstOrCreate(['name' => 'Bet Win']);
                     CoinTransaction::create([
                         'user_id' => $winner->id,
@@ -182,30 +170,25 @@ class MatchController extends Controller
                     ]);
                 }
 
-                // --- 2. GRAVAR NO HISTÓRICO (MatchModel) ---
-                // Forçamos a criação do registo mesmo que o jogo tenha sido curto
                 $match = new MatchModel();
 
-                // Mapear tipo 3 ou 9
                 $type = $validated['game_type'] ?? '3';
                 $match->type = ($type == 9) ? '9' : '3';
 
-                $match->status = 'Ended'; // Importante para aparecer no histórico
-                $match->player1_user_id = $winner->id; // Assumimos P1 como vencedor para simplificar o registo
+                $match->status = 'Ended';
+                $match->player1_user_id = $winner->id;
                 $match->player2_user_id = $loser->id;
                 $match->winner_user_id = $winner->id;
                 $match->loser_user_id = $loser->id;
 
-                // Se for forfeit, assumimos 120 - 0 se os scores não vierem
                 $match->player1_marks = $validated['p1_score'] ?? 120;
                 $match->player2_marks = $validated['p2_score'] ?? 0;
 
-                $match->total_time = 0; // Opcional: podias enviar do Node
+                $match->total_time = 0;
                 $match->began_at = now();
                 $match->ended_at = now();
                 $match->stake = $amount;
 
-                // Campo custom para saberes que foi forfeit
                 if (($validated['reason'] ?? '') === 'forfeit') {
                     $match->custom = ['termination' => 'forfeit'];
                 }
@@ -247,34 +230,27 @@ class MatchController extends Controller
         $perPage = $request->query('per_page', 10);
         $page = $request->query('page', 1);
 
-        // Configurar a query base
         $query = User::where('type', 'P');
 
         if ($filter === 'wins') {
             $query = $query->withCount('matchesWon')
                 ->orderByDesc('matches_won_count')
                 ->orderByDesc('created_at');
-        } 
-        elseif ($filter === 'coins') {
+        } elseif ($filter === 'coins') {
             $query = $query->orderByDesc('coins_balance')
                 ->orderByDesc('created_at');
-        } 
-        elseif ($filter === 'achievements') {
+        } elseif ($filter === 'achievements') {
             $query = $query->withCount('achievements as achievements_count')
                 ->orderByDesc('achievements_count')
                 ->orderByDesc('created_at');
-        } 
-        else {
-            // Default: wins
+        } else {
             $query = $query->withCount('matchesWon')
                 ->orderByDesc('matches_won_count')
                 ->orderByDesc('created_at');
         }
 
-        // Usar paginate() igual ao AdminController
         $data = $query->paginate($perPage, ['*'], 'page', $page);
 
-        // Transformar os dados para incluir informações específicas do filtro
         $transformedData = $data->getCollection()->map(function ($user) use ($filter) {
             $userData = [
                 'id' => $user->id,
@@ -289,7 +265,6 @@ class MatchController extends Controller
             return $userData;
         });
 
-        // Substituir a coleção transformada
         $data->setCollection($transformedData);
 
         return response()->json($data);
@@ -301,43 +276,34 @@ class MatchController extends Controller
         $userId = $request->query('user_id');
 
         if ($category === 'wins') {
-            // Obter todos os usuários ordenados por vitórias
             $users = User::where('type', 'P')
                 ->withCount('matchesWon')
                 ->orderByDesc('matches_won_count')
                 ->orderByDesc('created_at')
                 ->get();
 
-            // Encontrar a posição do usuário
             $rank = $users->search(function ($user) use ($userId) {
                 return $user->id == $userId;
             });
 
             return response()->json(['rank' => $rank !== false ? $rank + 1 : 0]);
-        } 
-        elseif ($category === 'coins') {
-            // Obter todos os usuários ordenados por moedas
+        } elseif ($category === 'coins') {
             $users = User::where('type', 'P')
                 ->orderByDesc('coins_balance')
                 ->orderByDesc('created_at')
                 ->get();
-
-            // Encontrar a posição do usuário
             $rank = $users->search(function ($user) use ($userId) {
                 return $user->id == $userId;
             });
 
             return response()->json(['rank' => $rank !== false ? $rank + 1 : 0]);
-        } 
-        elseif ($category === 'achievements') {
-            // Obter todos os usuários ordenados por achievements
+        } elseif ($category === 'achievements') {
             $users = User::where('type', 'P')
                 ->withCount('achievements as achievements_count')
                 ->orderByDesc('achievements_count')
                 ->orderByDesc('created_at')
                 ->get();
 
-            // Encontrar a posição do usuário
             $rank = $users->search(function ($user) use ($userId) {
                 return $user->id == $userId;
             });
@@ -348,9 +314,6 @@ class MatchController extends Controller
         return response()->json(['rank' => 0]);
     }
 
-    /**
-     * Cria um novo Match (Partida Multiplayer) - Chamado pelo Node.js
-     */
     public function createMatch(Request $request)
     {
         $validated = $request->validate([
@@ -361,7 +324,6 @@ class MatchController extends Controller
         ]);
 
         try {
-            // Verificar se jogador tem saldo suficiente
             $player1 = User::find($validated['player1_user_id']);
             if ($player1->coins_balance < $validated['bet_amount']) {
                 return response()->json([
@@ -371,7 +333,7 @@ class MatchController extends Controller
 
             $match = new MatchModel();
             $match->player1_user_id = $validated['player1_user_id'];
-            $match->player2_user_id = null; // Será preenchido quando o player2 entrar
+            $match->player2_user_id = null;
             $match->type = $validated['game_type'] ?? '3';
             $match->status = $validated['status'] ?? 'Pending';
             $match->stake = $validated['bet_amount'];
@@ -394,9 +356,6 @@ class MatchController extends Controller
         }
     }
 
-    /**
-     * Atualiza um Match existente (quando player2 entra)
-     */
     public function updateMatch(Request $request, $id)
     {
         $validated = $request->validate([
@@ -437,6 +396,213 @@ class MatchController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Erro ao atualizar match: ' . $e->getMessage());
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Cria um Game individual dentro de uma Match (ronda)
+     */
+    public function createGameInMatch(Request $request)
+    {
+        $validated = $request->validate([
+            'match_id' => 'required|integer|exists:matches,id',
+            'winner_user_id' => 'required|integer|exists:users,id',
+            'loser_user_id' => 'required|integer|exists:users,id',
+            'player1_points' => 'required|integer|min:0',
+            'player2_points' => 'required|integer|min:0',
+            'duration_seconds' => 'nullable|integer|min:0',
+            'reason' => 'nullable|string'
+        ]);
+
+        try {
+            $match = MatchModel::findOrFail($validated['match_id']);
+
+            $game = new Game();
+            $game->match_id = $validated['match_id'];
+            $game->type = $match->type;
+            $game->player1_user_id = $match->player1_user_id;
+            $game->player2_user_id = $match->player2_user_id;
+            $game->winner_user_id = $validated['winner_user_id'];
+            $game->loser_user_id = $validated['loser_user_id'];
+            $game->player1_points = $validated['player1_points'];
+            $game->player2_points = $validated['player2_points'];
+            $game->status = 'Ended';
+            $game->began_at = now()->subSeconds($validated['duration_seconds'] ?? 0);
+            $game->ended_at = now();
+            $game->total_time = $validated['duration_seconds'] ?? 0;
+
+            if (isset($validated['reason'])) {
+                $game->custom = ['termination' => $validated['reason']];
+            }
+
+            $game->save();
+
+            Log::info("Game criado dentro da Match {$match->id}: Game ID {$game->id}");
+
+            return response()->json([
+                'id' => $game->id,
+                'match_id' => $game->match_id,
+                'winner_user_id' => $game->winner_user_id,
+                'player1_points' => $game->player1_points,
+                'player2_points' => $game->player2_points
+            ], 201);
+
+        } catch (\Exception $e) {
+            Log::error('Erro ao criar game na match: ' . $e->getMessage());
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function finalizeMatch(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'winner_user_id' => 'required|integer|exists:users,id',
+            'loser_user_id' => 'required|integer|exists:users,id',
+            'player1_total_points' => 'required|integer|min:0',
+            'player2_total_points' => 'required|integer|min:0',
+            'player1_marks' => 'required|integer|min:0|max:4',
+            'player2_marks' => 'required|integer|min:0|max:4',
+            'reason' => 'nullable|string'
+        ]);
+
+        try {
+            return DB::transaction(function () use ($id, $validated) {
+                $match = MatchModel::findOrFail($id);
+
+                $match->status = 'Ended';
+                $match->winner_user_id = $validated['winner_user_id'];
+                $match->loser_user_id = $validated['loser_user_id'];
+                $match->player1_points = $validated['player1_total_points'];
+                $match->player2_points = $validated['player2_total_points'];
+                $match->player1_marks = $validated['player1_marks'];
+                $match->player2_marks = $validated['player2_marks'];
+                $match->ended_at = now();
+
+                if ($match->began_at) {
+                    $match->total_time = now()->diffInSeconds($match->began_at);
+                }
+
+                if (isset($validated['reason'])) {
+                    $match->custom = ['termination' => $validated['reason']];
+                }
+
+                $match->save();
+
+                if ($match->stake > 0) {
+                    $winner = User::findOrFail($validated['winner_user_id']);
+                    $loser = User::findOrFail($validated['loser_user_id']);
+
+                    $loser->coins_balance -= $match->stake;
+                    $loser->save();
+
+                    $winner->coins_balance += $match->stake;
+                    $winner->save();
+
+                    $typeLoss = CoinTransactionType::firstOrCreate(['name' => 'Match stake', 'type' => 'D']);
+                    CoinTransaction::create([
+                        'user_id' => $loser->id,
+                        'match_id' => $match->id,
+                        'coin_transaction_type_id' => $typeLoss->id,
+                        'coins' => $match->stake,
+                        'transaction_datetime' => now(),
+                        'custom' => ['opponent_id' => $winner->id, 'reason' => 'match_loss']
+                    ]);
+
+                    $typeWin = CoinTransactionType::firstOrCreate(['name' => 'Match payout', 'type' => 'C']);
+                    CoinTransaction::create([
+                        'user_id' => $winner->id,
+                        'match_id' => $match->id,
+                        'coin_transaction_type_id' => $typeWin->id,
+                        'coins' => $match->stake,
+                        'transaction_datetime' => now(),
+                        'custom' => ['opponent_id' => $loser->id, 'reason' => 'match_win']
+                    ]);
+                }
+
+                Log::info("Match finalizada: ID {$match->id} | Vencedor: {$match->winner_user_id}");
+
+                return response()->json([
+                    'message' => 'Match finalizada com sucesso',
+                    'match' => $match->load('games')
+                ], 200);
+            });
+
+        } catch (\Exception $e) {
+            Log::error('Erro ao finalizar match: ' . $e->getMessage());
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function startGameInMatch(Request $request)
+    {
+        $validated = $request->validate([
+            'match_id' => 'required|integer|exists:matches,id'
+        ]);
+
+        try {
+            $match = MatchModel::findOrFail($validated['match_id']);
+
+            $game = new Game();
+            $game->match_id = $validated['match_id'];
+            $game->type = $match->type;
+            $game->player1_user_id = $match->player1_user_id;
+            $game->player2_user_id = $match->player2_user_id;
+            $game->status = 'Playing';
+            $game->began_at = now();
+            $game->save();
+
+            Log::info("Game individual criado para Match {$match->id}: Game ID {$game->id}");
+
+            return response()->json([
+                'id' => $game->id,
+                'match_id' => $game->match_id,
+                'status' => $game->status
+            ], 201);
+
+        } catch (\Exception $e) {
+            Log::error('Erro ao criar game na match: ' . $e->getMessage());
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function finishGameInMatch(Request $request, $gameId)
+    {
+        $validated = $request->validate([
+            'winner_user_id' => 'required|integer|exists:users,id',
+            'loser_user_id' => 'required|integer|exists:users,id',
+            'player1_points' => 'required|integer|min:0',
+            'player2_points' => 'required|integer|min:0',
+            'reason' => 'nullable|string'
+        ]);
+
+        try {
+            $game = Game::findOrFail($gameId);
+
+            $game->winner_user_id = $validated['winner_user_id'];
+            $game->loser_user_id = $validated['loser_user_id'];
+            $game->player1_points = $validated['player1_points'];
+            $game->player2_points = $validated['player2_points'];
+            $game->status = 'Ended';
+            $game->ended_at = now();
+            $game->total_time = now()->diffInSeconds($game->began_at);
+
+            if (isset($validated['reason'])) {
+                $game->custom = ['termination' => $validated['reason']];
+            }
+
+            $game->save();
+
+            Log::info("Game {$game->id} finalizado: {$validated['winner_user_id']} venceu {$validated['loser_user_id']}");
+
+            return response()->json([
+                'id' => $game->id,
+                'winner_user_id' => $game->winner_user_id,
+                'status' => $game->status
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error('Erro ao finalizar game: ' . $e->getMessage());
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }

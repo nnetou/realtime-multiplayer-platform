@@ -33,7 +33,6 @@ const reviveCard = (plainCard) => {
         const foundRank = Object.values(Rank).find(r => r.name === plainCard.rank.name);
         if (foundRank) rank = foundRank;
     }
-    // --- CORREÇÃO: Passar imageUrl que vem do server/engine ---
     return new Card(suit, rank, plainCard.imageUrl, plainCard.code);
 };
 
@@ -54,10 +53,13 @@ export const useGameStore = defineStore('game', {
 
         playerMatchScore: 0,
         botMatchScore: 0,
+        playerTotalPoints: 0,
+        botTotalPoints: 0,
         isMatchOver: false,
         matchWinner: null,
         awaitingOpponent: false,
-        gameEnded: false
+        gameEnded: false,
+        amIPlayer1: null
     }),
 
     actions: {
@@ -72,9 +74,13 @@ export const useGameStore = defineStore('game', {
             this.isMultiplayer = true;
             if (serverState.id) this.multiplayerGame = { id: String(serverState.id) };
             this.gameState.playerHand = (serverState.myHand || []).map(reviveCard);
-            if (this.gameState.playerHand.length > 0 && this.gameState.botHand.length === 0) {
-                this.gameState.botHand = [{}, {}, {}];
+
+
+            const playerHandCount = this.gameState.playerHand.length;
+            if (playerHandCount > 0) {
+                this.gameState.botHand = new Array(playerHandCount).fill({});
             }
+
             if (serverState.trunfo) {
                 this.gameState.trunfo = reviveCard(serverState.trunfo);
                 this.gameState.trunfoSuit = serverState.trunfoSuit;
@@ -87,10 +93,32 @@ export const useGameStore = defineStore('game', {
             } else if (serverState.myScore !== undefined) {
                 this.gameState.playerScore = serverState.myScore;
                 this.gameState.botScore = serverState.opponentScore;
+            } else if (serverState.p1Score !== undefined && serverState.p2Score !== undefined) {
+                if (this.amIPlayer1) {
+                    this.gameState.playerScore = serverState.p1Score;
+                    this.gameState.botScore = serverState.p2Score;
+                } else {
+                    this.gameState.playerScore = serverState.p2Score;
+                    this.gameState.botScore = serverState.p1Score;
+                }
+                console.log('📊 updateStateFromServer - amIPlayer1:', this.amIPlayer1, 'p1Score:', serverState.p1Score, 'p2Score:', serverState.p2Score, 'playerScore:', this.gameState.playerScore, 'botScore:', this.gameState.botScore);
             }
 
             if (serverState.isMyTurn !== undefined) this.gameState.playerTurn = serverState.isMyTurn;
             if (typeof serverState.deckCount === 'number') this.gameState.deck = new Array(serverState.deckCount).fill({});
+
+            // Atualizar match score se fornecido pelo servidor - INTERPRETAR BASEADO EM amIPlayer1
+            if (serverState.matchScore) {
+                if (this.amIPlayer1) {
+                    // Player 1: Tu=p1, Oponente=p2
+                    if (serverState.matchScore.p1 !== undefined) this.playerMatchScore = serverState.matchScore.p1;
+                    if (serverState.matchScore.p2 !== undefined) this.botMatchScore = serverState.matchScore.p2;
+                } else {
+                    // Player 2: Tu=p2, Oponente=p1
+                    if (serverState.matchScore.p2 !== undefined) this.playerMatchScore = serverState.matchScore.p2;
+                    if (serverState.matchScore.p1 !== undefined) this.botMatchScore = serverState.matchScore.p1;
+                }
+            }
         },
 
         handleOpponentMove(card) {
@@ -107,11 +135,23 @@ export const useGameStore = defineStore('game', {
 
         handleServerTrickResult(data, mySocketId) {
             const amIWinner = (data.winnerId === mySocketId);
+
             setTimeout(() => {
                 this.gameState.tableCards = [];
                 this.gameState.playerTurn = (data.nextTurn === mySocketId);
-                if (amIWinner) this.gameState.playerScore += data.pointsInTrick;
-                else this.gameState.botScore += data.pointsInTrick;
+
+                // ATUALIZAÇÃO SEGURA DE SCORES
+                // Usa os valores absolutos enviados pelo servidor para evitar erros de soma
+                if (data.myScore !== undefined && data.opponentScore !== undefined) {
+                    this.gameState.playerScore = data.myScore;
+                    this.gameState.botScore = data.opponentScore;
+                    console.log('🎴 handleServerTrickResult - myScore:', data.myScore, 'opponentScore:', data.opponentScore, 'playerScore:', this.gameState.playerScore, 'botScore:', this.gameState.botScore);
+                } else {
+                    // Fallback (apenas se o servidor não enviar myScore)
+                    if (amIWinner) this.gameState.playerScore += data.pointsInTrick;
+                    else this.gameState.botScore += data.pointsInTrick;
+                }
+
                 this.gameState.isProcessingMove = false;
             }, 1500);
         },
@@ -251,18 +291,60 @@ export const useGameStore = defineStore('game', {
 
             socket.on('game:ended', (data) => {
                 console.log('🏁 Jogo terminou:', data);
+                console.log('🔍 Debug - winner.id:', data.winner.id, 'socket.id:', socket.id);
+                console.log('🔍 Debug - amIPlayer1:', this.amIPlayer1);
+
+                // Atualizar scores finais interpretando p1Score/p2Score corretamente
                 if (data.scores) {
-                    this.gameState.playerScore = data.scores.p1Score;
-                    this.gameState.botScore = data.scores.p2Score;
+                    if (this.amIPlayer1) {
+                        this.gameState.playerScore = data.scores.p1Score;
+                        this.gameState.botScore = data.scores.p2Score;
+                    } else {
+                        this.gameState.playerScore = data.scores.p2Score;
+                        this.gameState.botScore = data.scores.p1Score;
+                    }
                 }
-                const amIWinner = (String(data.winner.id) === String(this.socket.id));
+                const amIWinner = (String(data.winner.id) === String(socket.id));
+                console.log('🔍 Debug - amIWinner:', amIWinner);
                 const pointsReceived = data.matchPointsReceived || 1;
+
+                console.log('🎯 amIWinner:', amIWinner, 'pointsReceived:', pointsReceived);
+                console.log('🎯 Antes - playerMatchScore:', this.playerMatchScore, 'botMatchScore:', this.botMatchScore);
+
+                // Acumular os pontos de bisca desta ronda aos totais da match
+                this.playerTotalPoints += this.gameState.playerScore;
+                this.botTotalPoints += this.gameState.botScore;
+                console.log('💰 Acumulando pontos - playerTotalPoints:', this.playerTotalPoints, 'botTotalPoints:', this.botTotalPoints);
 
                 if (amIWinner) this.playerMatchScore += pointsReceived;
                 else this.botMatchScore += pointsReceived;
 
+                console.log('🎯 Depois - playerMatchScore:', this.playerMatchScore, 'botMatchScore:', this.botMatchScore);
+
                 this.gameState.gameFinished = true;
                 this.gameEnded = true;
+
+                // Mostrar toast de vitória/derrota
+                const isVitoria = amIWinner;
+                let msg = isVitoria ? "Vitória!" : "Derrota.";
+                if (data.reason === 'forfeit') msg = isVitoria ? "Oponente desistiu! Ganhaste!" : "Desististe.";
+                else if (data.reason === 'disconnect') msg = "Oponente saiu. Vitória!";
+
+                // Mostrar toast (se disponível)
+                // try {
+                //     const { useToast } = await import('vue-toast-notification');
+                //     const toast = useToast();
+                //     isVitoria ? toast.success(msg) : toast.error(msg);
+                // } catch (e) {
+                //     console.log(msg);
+                // }
+
+                // Atualizar saldo (se betAmount existe)
+                if (data.betAmount > 0) {
+                    const authStore = useAuthStore();
+                    if (isVitoria) authStore.user.coins_balance += Number(data.betAmount);
+                    else authStore.user.coins_balance -= Number(data.betAmount);
+                }
 
                 if (this.playerMatchScore >= 4) {
                     this.isMatchOver = true;
@@ -274,8 +356,13 @@ export const useGameStore = defineStore('game', {
             });
 
             socket.on('start_next_round', (data) => {
+                console.log('🔄 start_next_round - amIPlayer1 antes:', this.amIPlayer1);
+                this.awaitingOpponent = false;
+                this.gameState.gameFinished = false;
+                this.gameEnded = false;
                 this.resetForNewPlay();
                 if (data.gameState) this.updateStateFromServer(data.gameState);
+                console.log('🔄 start_next_round - amIPlayer1 depois:', this.amIPlayer1);
             });
         },
 

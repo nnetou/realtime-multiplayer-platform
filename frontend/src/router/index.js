@@ -40,13 +40,13 @@ const router = createRouter({
           children: [
             {
               path: 'quick',
-              name: 'quick-game', // CORRIGIDO: match com HomeView
+              name: 'quick-game',
               component: SinglePlayerGamePage,
-              meta: { playMode: 'single_game', requiresAuth: true } // Opcional: proteger jogo
+              meta: { playMode: 'single_game', requiresAuth: true }
             },
             {
               path: 'match',
-              name: 'full-match', // CORRIGIDO: match com HomeView
+              name: 'full-match',
               component: SinglePlayerGamePage,
               meta: { playMode: 'match', requiresAuth: true }
             }
@@ -126,7 +126,7 @@ const router = createRouter({
       path: '/admin/history',
       name: 'admin-history',
       component: AdminHistoryPage,
-      meta: { requiresAuth: true, requiresAdmin: true }, // Meta flag para admin
+      meta: { requiresAuth: true, requiresAdmin: true },
     },
     {
       path: '/scoreboards',
@@ -156,11 +156,9 @@ const router = createRouter({
   ],
 })
 
-// === GUARDA DE NAVEGAÇÃO CORRIGIDO ===
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore()
 
-  // CORREÇÃO: Usar isAuthenticated em vez de isLoggedIn
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     toast.error('Esta navegação requer autenticação')
     next({ name: 'login' })

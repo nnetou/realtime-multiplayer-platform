@@ -46,15 +46,11 @@
       <div class="right-spacer">
         <div class="score-board">
           <p class="text-yellow-400 font-bold">
-            Tu: {{ store.playerMatchScore }} ({{
-              store.gameState.playerScore
-            }}
+            Tu: {{ store.playerMatchScore }} ({{ store.gameState.playerScore }}
             pts)
           </p>
           <p class="text-red-400 font-bold">
-            Oponente: {{ store.botMatchScore }} ({{
-              store.gameState.botScore
-            }}
+            Oponente: {{ store.botMatchScore }} ({{ store.gameState.botScore }}
             pts)
           </p>
         </div>
@@ -96,16 +92,18 @@
     <!-- Modal de Resultados -->
     <GameResultModal
       :show="showResultModal"
+      @next-game="handleNextGame"
       :playerScore="store.gameState.playerScore"
       :opponentScore="store.gameState.botScore"
       :playerMarks="store.playerMatchScore"
       :opponentMarks="store.botMatchScore"
+      :playerTotalPoints="store.playerTotalPoints"
+      :opponentTotalPoints="store.botTotalPoints"
       :isMatchMode="isMatchMode"
       :isMatchOver="store.isMatchOver"
       :matchWinner="store.matchWinner"
       :allowForfeit="!store.isMatchOver"
       :awaitingOpponent="store.awaitingOpponent"
-      @next-game="handleNextGame"
       @forfeit="showQuitModal = true"
       @back-to-menu="router.push('/')"
     />
@@ -119,7 +117,10 @@
     />
 
     <!-- Botão de Desistir (apenas durante jogo ativo) -->
-    <div v-if="!store.gameState.gameFinished" class="fixed bottom-6 left-6 z-50">
+    <div
+      v-if="!store.gameState.gameFinished"
+      class="fixed bottom-6 left-6 z-50"
+    >
       <button
         @click="showQuitModal = true"
         class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg shadow-lg flex items-center gap-2 border-2 border-red-800"
@@ -150,12 +151,12 @@ const router = useRouter();
 const showResultModal = ref(false);
 const showQuitModal = ref(false);
 
-const cardBackUrl = computed(
-  () =>
-    `${serverBaseURL}/api/card-image-proxy/${
-      authStore.user?.custom?.equipped_card || "cardflipped.png"
-    }`
-);
+const cardBackUrl = computed(() => {
+  const cardName = authStore.user?.custom?.equipped_card || "cardflipped.png";
+  return `${serverBaseURL}/api/card-image-proxy/${cardName}?v=${
+    authStore.user?.id || 1
+  }`;
+});
 
 const tableColor = computed(() => {
   const equipped = authStore.user?.custom?.equipped_table || "green";
@@ -172,7 +173,7 @@ const currentBet = computed(
   () => store.multiplayerGame?.betAmount || store.gameState?.betAmount || 0
 );
 
-const isMatchMode = computed(() => store.gameState.playMode === 'match');
+const isMatchMode = computed(() => store.gameState.playMode === "match");
 
 const handlePlayCard = (card) => {
   store.playCard(card, socket);
@@ -183,20 +184,26 @@ const handlePlayCard = (card) => {
 // ========================================
 
 // Observar quando o jogo termina (servidor envia game_ended)
-watch(() => store.gameState.gameFinished, (finished) => {
-  if (finished && isMatchMode.value) {
-    // Mostrar modal de resultados
-    showResultModal.value = true;
+watch(
+  () => store.gameState.gameFinished,
+  (finished) => {
+    if (finished && isMatchMode.value) {
+      // Mostrar modal de resultados
+      showResultModal.value = true;
+    }
   }
-});
+);
 
 // Fechar modal apenas quando ambos estão prontos para novo jogo
-watch(() => store.gameEnded, (ended) => {
-  if (!ended) {
-    // Próximo jogo iniciou, fechar modal
-    showResultModal.value = false;
+watch(
+  () => store.gameEnded,
+  (ended) => {
+    if (!ended) {
+      // Próximo jogo iniciou, fechar modal
+      showResultModal.value = false;
+    }
   }
-});
+);
 
 // ========================================
 // HANDLERS DOS BOTÕES
@@ -220,18 +227,25 @@ const handleForfeit = () => {
 onMounted(() => {
   // Vincular socket à store
   store.bindSocket(socket);
-  
+
   // Configurar listeners de socket (game_ended, opponent_forfeit, start_next_round)
   store.setupSocketListeners(socket);
 });
 
 // Impedir saída durante jogo ativo sem confirmação
 onBeforeRouteLeave((to, from, next) => {
-  if (store.gameState.gameFinished || store.isMatchOver) {
+  // Permitir navegação se: match terminou, aguardando oponente, ou não tem jogo ativo
+  if (
+    store.gameState.gameFinished ||
+    store.isMatchOver ||
+    store.awaitingOpponent ||
+    store.gameState.playerHand.length === 0 // Não bloquear se não tem cartas (transição ou início)
+  ) {
     next();
     return;
   }
 
+  // Se está no meio de um jogo ativo com cartas na mão, pedir confirmação
   showQuitModal.value = true;
   next(false); // Bloqueia navegação
 });

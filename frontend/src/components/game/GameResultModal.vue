@@ -1,11 +1,13 @@
 <template>
   <div v-if="show" class="modal-overlay" @click.self="handleClose">
     <div class="modal-content">
-      <!-- Resultado do Jogo Atual -->
       <div class="result-header">
         <h2 class="result-title" :class="resultClass">
           {{ resultTitle }}
         </h2>
+
+        <p v-if="isTie" class="tie-message">🤝 Ninguém pontua nesta ronda.</p>
+
         <div class="game-score">
           <p class="score-line">
             <span class="label">Tu:</span>
@@ -18,59 +20,70 @@
         </div>
       </div>
 
-      <!-- Match Score (Marcas) -->
       <div v-if="isMatchMode" class="match-score">
-        <h3 class="match-title">Marcas da Partida</h3>
+        <h3 class="match-title">Placar da Partida (Melhor de 4)</h3>
         <div class="marks-display">
           <div class="marks-item">
-            <span class="marks-label">🟢 Tu:</span>
+            <span class="marks-label">🟢 Tu</span>
             <span class="marks-count">{{ playerMarks }}</span>
           </div>
+          <div class="marks-divider">vs</div>
           <div class="marks-item">
-            <span class="marks-label">🔴 Oponente:</span>
+            <span class="marks-label">🔴 Oponente</span>
             <span class="marks-count">{{ opponentMarks }}</span>
           </div>
         </div>
       </div>
 
-      <!-- Fim de Partida -->
       <div v-if="isMatchOver" class="match-over">
-        <h2 class="final-result" :class="matchWinner === 'player' ? 'win' : 'lose'">
-          {{ matchWinner === 'player' ? '🏆 VITÓRIA DA PARTIDA!' : '😔 DERROTA DA PARTIDA' }}
+        <h2
+          class="final-result"
+          :class="matchWinner === 'player' ? 'win' : 'lose'"
+        >
+          {{
+            matchWinner === "player"
+              ? "🏆 VENCEDOR DA PARTIDA!"
+              : "💀 DERROTA NA PARTIDA"
+          }}
         </h2>
         <p class="final-message">
-          {{ matchWinner === 'player' 
-            ? 'Parabéns! Ganhaste a partida!' 
-            : 'O oponente ganhou a partida.' }}
+          {{
+            matchWinner === "player"
+              ? "Parabéns! Venceste o match!"
+              : "Mais sorte para a próxima."
+          }}
         </p>
       </div>
 
-      <!-- Aguardando Oponente -->
       <div v-if="awaitingOpponent && !isMatchOver" class="awaiting-opponent">
         <div class="spinner"></div>
-        <p class="awaiting-text">⏳ Aguardando o oponente...</p>
+        <p class="awaiting-text">⏳ Aguardando que o oponente aceite...</p>
+        <p class="awaiting-subtext">
+          O jogo começará quando ambos estiverem prontos.
+        </p>
       </div>
 
-      <!-- Botões -->
       <div class="modal-actions">
-        <button 
-          v-if="!isMatchOver && !awaitingOpponent" 
-          @click="handleNextGame" 
+        <button
+          v-if="!isMatchOver && !awaitingOpponent"
+          @click="handleNextGame"
           class="btn-primary"
         >
           <span class="countdown" v-if="countdown > 0">({{ countdown }}s)</span>
           Próximo Jogo
         </button>
-        <button 
-          v-if="isMatchOver" 
-          @click="handleBackToMenu" 
+
+        <button
+          v-if="isMatchOver"
+          @click="handleBackToMenu"
           class="btn-primary"
         >
-          Voltar ao Menu
+          Voltar ao Menu Principal
         </button>
-        <button 
-          v-if="!isMatchOver && !awaitingOpponent && allowForfeit" 
-          @click="handleForfeit" 
+
+        <button
+          v-if="!isMatchOver && !awaitingOpponent && allowForfeit"
+          @click="handleForfeit"
           class="btn-secondary"
         >
           Desistir da Partida
@@ -81,7 +94,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onUnmounted } from 'vue';
+import { ref, computed, watch, onUnmounted } from "vue";
 
 const props = defineProps({
   show: { type: Boolean, default: false },
@@ -89,62 +102,72 @@ const props = defineProps({
   opponentScore: { type: Number, default: 0 },
   playerMarks: { type: Number, default: 0 },
   opponentMarks: { type: Number, default: 0 },
+  playerTotalPoints: { type: Number, default: 0 }, // Total pontos da match
+  opponentTotalPoints: { type: Number, default: 0 }, // Total pontos da match
   isMatchMode: { type: Boolean, default: true },
   isMatchOver: { type: Boolean, default: false },
   matchWinner: { type: String, default: null }, // 'player' | 'opponent'
   allowForfeit: { type: Boolean, default: true },
-  awaitingOpponent: { type: Boolean, default: false }, // Novo: indica se aguarda oponente
-  autoStartDelay: { type: Number, default: 5 } // segundos até auto-start
+  awaitingOpponent: { type: Boolean, default: false },
+  outcome: { type: String, default: "" }, // 'win', 'lose', 'tie'
+  autoStartDelay: { type: Number, default: 15 }, // Aumentado para 15s para dar tempo
 });
 
-const emit = defineEmits(['next-game', 'forfeit', 'back-to-menu', 'close']);
+const emit = defineEmits(["next-game", "forfeit", "back-to-menu", "close"]);
 
 const countdown = ref(0);
 let countdownInterval = null;
 
+// Computados para UI
+const isTie = computed(() => {
+  // Verifica por prop explícita ou por score
+  return props.outcome === "tie" || props.playerScore === props.opponentScore;
+});
+
 const resultTitle = computed(() => {
-  if (props.playerScore > props.opponentScore) return 'VITÓRIA DO JOGO!';
-  if (props.playerScore < props.opponentScore) return 'DERROTA DO JOGO';
-  return 'EMPATE';
+  if (isTie.value) return "JOGO EMPATADO";
+  if (props.playerScore > props.opponentScore) return "VITÓRIA NA RONDA!";
+  return "DERROTA NA RONDA";
 });
 
 const resultClass = computed(() => {
-  if (props.playerScore > props.opponentScore) return 'win';
-  if (props.playerScore < props.opponentScore) return 'lose';
-  return 'draw';
+  if (isTie.value) return "draw";
+  if (props.playerScore > props.opponentScore) return "win";
+  return "lose";
 });
 
+// Ações
 const handleNextGame = () => {
   stopCountdown();
-  emit('next-game');
+  emit("next-game"); // O pai vai setar awaitingOpponent = true
 };
 
 const handleForfeit = () => {
   stopCountdown();
-  emit('forfeit');
+  emit("forfeit");
 };
 
 const handleBackToMenu = () => {
-  emit('back-to-menu');
+  emit("back-to-menu");
 };
 
 const handleClose = () => {
-  if (!props.isMatchOver) {
-    // Não permite fechar o modal clicando fora durante partida
-    return;
+  // Impede fechar clicando fora a menos que o match tenha acabado
+  if (props.isMatchOver) {
+    emit("close");
   }
-  emit('close');
 };
 
+// Countdown Logic
 const startCountdown = () => {
   if (props.isMatchOver || !props.show || props.awaitingOpponent) return;
-  
+
   countdown.value = props.autoStartDelay;
   countdownInterval = setInterval(() => {
     countdown.value--;
     if (countdown.value <= 0) {
       stopCountdown();
-      handleNextGame();
+      handleNextGame(); // Auto-aceita se o tempo acabar
     }
   }, 1000);
 };
@@ -157,13 +180,26 @@ const stopCountdown = () => {
   countdown.value = 0;
 };
 
-watch(() => props.show, (newVal) => {
-  if (newVal && !props.isMatchOver && !props.awaitingOpponent) {
-    startCountdown();
-  } else {
-    stopCountdown();
+// Watchers
+watch(
+  () => props.show,
+  (newVal) => {
+    if (newVal && !props.isMatchOver && !props.awaitingOpponent) {
+      startCountdown();
+    } else {
+      stopCountdown();
+    }
+  },
+  { immediate: true }
+);
+
+// Se entrarmos em estado de espera, para o countdown
+watch(
+  () => props.awaitingOpponent,
+  (newVal) => {
+    if (newVal) stopCountdown();
   }
-}, { immediate: true });
+);
 
 onUnmounted(() => {
   stopCountdown();
@@ -186,212 +222,236 @@ onUnmounted(() => {
 }
 
 .modal-content {
-  background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+  background: linear-gradient(135deg, #2c3e50 0%, #1a252f 100%);
   border-radius: 16px;
   padding: 32px;
   max-width: 500px;
   width: 90%;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-  border: 2px solid rgba(255, 255, 255, 0.1);
-  animation: slideIn 0.3s ease-out;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  animation: slideIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  display: flex;
+  flex-direction: column;
 }
 
 @keyframes slideIn {
   from {
     opacity: 0;
-    transform: translateY(-30px) scale(0.95);
+    transform: scale(0.9);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: scale(1);
   }
 }
 
 .result-header {
   text-align: center;
-  margin-bottom: 24px;
-  padding-bottom: 20px;
-  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .result-title {
   font-size: 2rem;
-  font-weight: bold;
-  margin-bottom: 16px;
+  font-weight: 800;
+  margin-bottom: 10px;
   text-transform: uppercase;
-  letter-spacing: 2px;
+  letter-spacing: 1px;
 }
 
 .result-title.win {
   color: #2ecc71;
-  text-shadow: 0 0 10px rgba(46, 204, 113, 0.5);
+  text-shadow: 0 0 15px rgba(46, 204, 113, 0.4);
 }
-
 .result-title.lose {
   color: #e74c3c;
-  text-shadow: 0 0 10px rgba(231, 76, 60, 0.5);
+  text-shadow: 0 0 15px rgba(231, 76, 60, 0.4);
 }
-
 .result-title.draw {
-  color: #f39c12;
-  text-shadow: 0 0 10px rgba(243, 156, 18, 0.5);
+  color: #3498db;
+  text-shadow: 0 0 15px rgba(52, 152, 219, 0.4);
+} /* Azul para empate */
+
+.tie-message {
+  color: #bdc3c7;
+  font-size: 0.95rem;
+  margin-bottom: 10px;
+  font-style: italic;
 }
 
 .game-score {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 10px 20px;
+  border-radius: 8px;
+  margin-top: 10px;
 }
 
 .score-line {
   display: flex;
   justify-content: space-between;
-  font-size: 1.2rem;
-  color: white;
+  font-size: 1.1rem;
+  margin: 4px 0;
 }
-
 .score-line .label {
-  font-weight: 600;
   color: #bdc3c7;
 }
-
 .score-line .value {
   font-weight: bold;
-  color: #f1c40f;
+  color: #fff;
 }
 
 .match-score {
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(255, 255, 255, 0.05);
   border-radius: 12px;
-  padding: 20px;
+  padding: 15px;
   margin-bottom: 24px;
+  text-align: center;
 }
 
 .match-title {
-  text-align: center;
-  color: #ecf0f1;
-  font-size: 1.3rem;
-  margin-bottom: 16px;
-  font-weight: 600;
+  color: #bdc3c7;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 12px;
 }
 
 .marks-display {
   display: flex;
-  justify-content: space-around;
-  gap: 16px;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
 }
 
 .marks-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+}
+
+.marks-divider {
+  font-size: 1.2rem;
+  color: #7f8c8d;
+  font-weight: bold;
 }
 
 .marks-label {
-  font-size: 1rem;
+  font-size: 0.8rem;
   color: #bdc3c7;
-  font-weight: 500;
+  margin-bottom: 4px;
 }
-
 .marks-count {
-  font-size: 2.5rem;
-  font-weight: bold;
+  font-size: 2rem;
+  font-weight: 900;
   color: #f1c40f;
-  text-shadow: 0 0 8px rgba(241, 196, 15, 0.4);
+  line-height: 1;
 }
 
 .match-over {
   text-align: center;
-  margin-bottom: 24px;
-  padding: 20px;
-  background: rgba(0, 0, 0, 0.4);
-  border-radius: 12px;
+  margin-bottom: 20px;
+  padding: 15px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.final-result {
-  font-size: 2.2rem;
-  font-weight: bold;
-  margin-bottom: 12px;
-  text-transform: uppercase;
+.final-result.win {
+  color: #f1c40f;
+}
+.final-result.lose {
+  color: #95a5a6;
 }
 
 .final-message {
-  font-size: 1.1rem;
   color: #ecf0f1;
-  margin-top: 8px;
+  margin-top: 5px;
 }
 
+/* Botões */
 .modal-actions {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+  margin-top: auto;
 }
 
 .btn-primary,
 .btn-secondary {
-  padding: 14px 24px;
+  padding: 16px;
   border: none;
   border-radius: 8px;
-  font-size: 1.1rem;
-  font-weight: bold;
+  font-size: 1rem;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: transform 0.1s, box-shadow 0.2s;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  width: 100%;
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+  background: linear-gradient(to right, #27ae60, #2ecc71);
   color: white;
-  box-shadow: 0 4px 12px rgba(46, 204, 113, 0.4);
+  box-shadow: 0 4px 0 #219150;
 }
-
-.btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(46, 204, 113, 0.6);
+.btn-primary:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 #219150;
 }
 
 .btn-secondary {
-  background: linear-gradient(135deg, #c0392b 0%, #e74c3c 100%);
-  color: white;
-  box-shadow: 0 4px 12px rgba(231, 76, 60, 0.4);
+  background: transparent;
+  border: 2px solid #c0392b;
+  color: #e74c3c;
 }
-
 .btn-secondary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(231, 76, 60, 0.6);
+  background: rgba(231, 76, 60, 0.1);
 }
 
-.countdown {
-  font-size: 0.9rem;
-  opacity: 0.8;
-  margin-right: 8px;
-}
-
+/* Estado de Espera */
 .awaiting-opponent {
   text-align: center;
-  padding: 20px;
-  margin-bottom: 24px;
+  padding: 30px 10px;
+  animation: pulse 2s infinite;
 }
 
 .spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid rgba(46, 204, 113, 0.2);
-  border-top-color: #2ecc71;
+  width: 50px;
+  height: 50px;
+  border: 5px solid rgba(255, 255, 255, 0.1);
+  border-top-color: #3498db;
   border-radius: 50%;
   animation: spin 1s linear infinite;
-  margin: 0 auto 12px;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
+  margin: 0 auto 15px;
 }
 
 .awaiting-text {
-  font-size: 1.1rem;
-  color: #2c3e50;
-  font-weight: 500;
+  font-size: 1.2rem;
+  color: #ecf0f1; /* CORRIGIDO: Agora é claro */
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+
+.awaiting-subtext {
+  font-size: 0.9rem;
+  color: #95a5a6;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes pulse {
+  0% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.8;
+  }
 }
 </style>

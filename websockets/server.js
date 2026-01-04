@@ -14,24 +14,23 @@ const RANKS = {
     '4': { value: 0, order: 3 },
     '5': { value: 0, order: 4 },
     '6': { value: 0, order: 5 },
-    '7': { value: 10, order: 10 },
+    '7': { value: 10, order: 9 },
     'Q': { value: 2, order: 6 },
     'J': { value: 3, order: 7 },
     'K': { value: 4, order: 8 },
-    'A': { value: 11, order: 9 }
+    'A': { value: 11, order: 10 }
 };
 
 function createDeck() {
     let deck = [];
     SUITS.forEach(suit => {
         Object.keys(RANKS).forEach(key => {
-            // --- CORREÇÃO: URL DA IMAGEM ---
             const imgUrl = `http://localhost:8000/images/cartas/playing-cards-master/${suit}_${key}.png`;
 
             deck.push({
                 suit: suit,
                 rank: { name: key, ...RANKS[key] },
-                imageUrl: imgUrl, // <--- IMPORTANTE
+                imageUrl: imgUrl,
                 code: `${key}-${suit}`
             });
         });
@@ -69,7 +68,7 @@ function initializeRoomState(gameId) {
 
 function prepareNextRound(game) {
     const fullDeck = createDeck();
-    const cardsPerPlayer = (game.gameType === '9') ? 9 : 3;
+    const cardsPerPlayer = (String(game.gameType) === '9') ? 9 : 3;
     const p1Hand = fullDeck.splice(0, cardsPerPlayer);
     const p2Hand = fullDeck.splice(0, cardsPerPlayer);
     const trunfo = fullDeck[0];
@@ -86,52 +85,116 @@ async function processGameEnd(io, game, winnerSocketId, reason, pointsAwarded = 
     if (!game || game.status === 'Ended') return;
 
     const isCreatorWinner = (String(winnerSocketId) === String(game.creatorId));
-    const winnerUserId = isCreatorWinner ? game.creatorUserId : game.player2UserId;
-    const loserUserId = isCreatorWinner ? game.player2UserId : game.creatorUserId;
+    const winnerUserId = winnerSocketId ? ((String(winnerSocketId) === String(game.creatorId)) ? game.creatorUserId : game.player2UserId) : null;
+    const loserUserId = winnerSocketId ? ((String(winnerSocketId) === String(game.creatorId)) ? game.player2UserId : game.creatorUserId) : null;
 
     const p1Score = game.state?.p1Score || 0;
     const p2Score = game.state?.p2Score || 0;
 
     const isDefinitiveEnd = (reason === 'forfeit' || reason === 'disconnect' || game.playMode === 'single_game');
+    const isMatchMode = (game.playMode === 'match');
 
-    if (isDefinitiveEnd) {
-        game.status = 'Ended';
-        try {
-            if (game.databaseId) await axios.patch(`${LARAVEL_API}/games/${game.databaseId}/status`, { status: 'Ended' });
-
-            if (winnerUserId && loserUserId && game.betAmount > 0) {
-                await axios.post(`${LARAVEL_API}/game/settle`, {
-                    winner_id: winnerUserId,
-                    loser_id: loserUserId,
-                    amount: game.betAmount,
-                    game_type: game.gameType,
-                    p1_score: p1Score,
-                    p2_score: p2Score,
-                    reason: reason
-                });
-                console.log("✅ Saldo liquidado.");
-            }
-        } catch (error) { console.error("❌ Erro Laravel:", error.message); }
-    } else {
-        game.status = 'Intermission';
+    // Atualizar pontuação da match se for modo match
+    if (isMatchMode && !game.matchPoints) {
+        game.matchPoints = { p1: 0, p2: 0 };
+        game.totalPoints = { p1: 0, p2: 0 };
     }
 
+    if (isMatchMode) {
+        game.totalPoints.p1 += p1Score;
+        game.totalPoints.p2 += p2Score;
+    }
+
+    // Incrementar marks (vitórias) apenas se houver pointsAwarded
+    if (isMatchMode && pointsAwarded > 0) {
+        if (isCreatorWinner) {
+            game.matchPoints.p1 += pointsAwarded;
+        } else {
+            game.matchPoints.p2 += pointsAwarded;
+        }
+    }
+
+    const matchEnded = isMatchMode && (
+        isDefinitiveEnd ||
+        game.matchPoints.p1 >= 4 ||
+        game.matchPoints.p2 >= 4
+    );
+
+    if (matchEnded || !isMatchMode) {
+        game.status = 'Ended';
+    } else {
+        game.status = 'Playing';
+    }
+
+    try {
+        if (game.currentGameId && isMatchMode) {
+            await axios.patch(`${LARAVEL_API}/matches/games/${game.currentGameId}/finish`, {
+                winner_user_id: winnerUserId,
+                loser_user_id: loserUserId,
+                player1_points: p1Score,
+                player2_points: p2Score,
+                reason: reason
+            });
+            console.log("✅ Game individual finalizado na BD (ID: " + game.currentGameId + ")");
+            game.currentGameId = null;
+        }
+
+        if (matchEnded) {
+            if (game.databaseId && isMatchMode) {
+                // Finalizar a match na BD
+                await axios.post(`${LARAVEL_API}/matches/${game.databaseId}/finalize`, {
+                    winner_user_id: winnerUserId,
+                    loser_user_id: loserUserId,
+                    player1_total_points: game.totalPoints.p1,
+                    player2_total_points: game.totalPoints.p2,
+                    player1_marks: game.matchPoints.p1,
+                    player2_marks: game.matchPoints.p2,
+                    reason: reason
+                });
+                console.log("✅ Match finalizada na BD: " + game.databaseId);
+            } else if (game.databaseId && !isMatchMode) {
+                await axios.patch(`${LARAVEL_API}/games/${game.databaseId}/status`, { status: 'Ended' });
+
+                if (winnerUserId && loserUserId && game.betAmount > 0) {
+                    await axios.post(`${LARAVEL_API}/game/settle`, {
+                        winner_id: winnerUserId,
+                        loser_id: loserUserId,
+                        game_type: game.gameType,
+                        p1_score: p1Score,
+                        p2_score: p2Score,
+                        reason: reason
+                    });
+                    console.log("✅ Saldo liquidado.");
+                }
+            }
+        }
+    } catch (error) {
+        console.error("❌ Erro Laravel:", error.response?.data || error.message);
+    }
+
+    console.log(`🏆 EMITINDO game:ended - Winner Socket: ${winnerSocketId}, Creator: ${game.creatorId}, Player2: ${game.player2}`);
+    console.log(`📊 Scores: P1=${p1Score}, P2=${p2Score}, Points Awarded=${pointsAwarded}`);
+    console.log(`🎯 Match Points: P1=${game.matchPoints?.p1}, P2=${game.matchPoints?.p2}, MatchEnded=${matchEnded}`);
+
     io.to(game.id).emit("game:ended", {
-        winner: { id: winnerSocketId },
+        winner: winnerSocketId ? { id: winnerSocketId } : null,
         reason: reason,
         betAmount: game.betAmount,
         matchPointsReceived: pointsAwarded,
-        scores: { p1Score, p2Score },
+        matchScore: isMatchMode ? game.matchPoints : null,
+        matchEnded: matchEnded,
+        scores: { p1Score: game.state.p1Score, p2Score: game.state.p2Score },
         finalState: { gameFinished: true }
     });
 
-    if (isDefinitiveEnd) {
+    if (matchEnded || !isMatchMode) {
         setTimeout(() => {
             const idx = games.indexOf(game);
             if (idx !== -1) games.splice(idx, 1);
         }, 5000);
     }
 }
+
 
 export function serverStart(port = PORT) {
     const io = new Server(port, { cors: { origin: "*", methods: ["GET", "POST"] } });
@@ -142,9 +205,14 @@ export function serverStart(port = PORT) {
         socket.on("create-game", async (data) => {
             const gameId = String(Date.now());
             let dbId = null;
+
+            console.log(`📋 Criando ${data.playMode} | Type: ${data.gameType} | Bet: ${data.betAmount}`);
+
             try {
                 if (data.authToken) {
                     const endpoint = data.playMode === 'match' ? '/matches' : '/games/create-multiplayer';
+                    console.log(`🔄 POST para ${endpoint}`);
+
                     const res = await axios.post(`${LARAVEL_API}${endpoint}`, {
                         player1_user_id: data.player1Id,
                         bet_amount: data.betAmount,
@@ -152,9 +220,15 @@ export function serverStart(port = PORT) {
                         status: 'Pending',
                         play_mode: data.playMode
                     }, { headers: { 'Authorization': `Bearer ${data.authToken}` } });
+
                     dbId = res.data.id;
+                    console.log(`✅ Recebido ID ${dbId} da API`);
+                } else {
+                    console.log(`⚠️ Sem authToken no create-game`);
                 }
-            } catch (error) { console.error("❌ Erro Laravel:", error.message); }
+            } catch (error) {
+                console.error(`❌ Erro ao criar no Laravel:`, error.response?.data || error.message);
+            }
 
             const newGame = {
                 id: gameId, databaseId: dbId,
@@ -162,8 +236,14 @@ export function serverStart(port = PORT) {
                 player2: null, player2UserId: null,
                 status: 'Pending', playMode: data.playMode || 'match',
                 gameType: data.gameType || 3, betAmount: data.betAmount || 0,
-                state: null
+                state: null,
+                currentGameId: null,
+                matchPoints: data.playMode === 'match' ? { p1: 0, p2: 0 } : null,
+                totalPoints: data.playMode === 'match' ? { p1: 0, p2: 0 } : null
             };
+
+            console.log(`📌 Game criado localmente: id=${newGame.id}, databaseId=${newGame.databaseId}, playMode=${newGame.playMode}`);
+
             games.push(newGame);
             socket.join(gameId);
             io.emit("games", games.filter(g => g.status === 'Pending'));
@@ -172,29 +252,53 @@ export function serverStart(port = PORT) {
 
         socket.on("join-game", async (data) => {
             const game = games.find(g => String(g.id) === String(data.gameId));
+            console.log(`👥 Tentativa de juntar à sala ${data.gameId} | User: ${data.userId}`);
+
             if (game && !game.player2) {
                 game.player2 = socket.id;
                 game.player2UserId = data.userId;
                 game.status = 'Playing';
 
+                console.log(`🎮 Player 2 juntou-se. DatabaseID: ${game.databaseId}, PlayMode: ${game.playMode}`);
+
                 try {
                     if (game.databaseId && data.authToken) {
                         if (game.playMode === 'match') {
-                            // Match precisa de autenticação
-                            await axios.patch(`${LARAVEL_API}/matches/${game.databaseId}`, {
-                                player2_user_id: data.userId, status: 'Playing'
+                            console.log(`🔄 Atualizando MATCH ${game.databaseId} com player2 e status Playing`);
+
+                            const updateRes = await axios.patch(`${LARAVEL_API}/matches/${game.databaseId}`, {
+                                player2_user_id: data.userId,
+                                status: 'Playing'
                             }, { headers: { 'Authorization': `Bearer ${data.authToken}` } });
+
+                            console.log(`✅ MATCH ${game.databaseId} atualizada`);
+
+                            console.log(`🔄 Criando game individual para match ${game.databaseId}`);
+
+                            const gameRes = await axios.post(`${LARAVEL_API}/matches/games/start`, {
+                                match_id: game.databaseId
+                            });
+
+                            game.currentGameId = gameRes.data.id;
+                            console.log(`✅ Game individual criado (ID: ${game.currentGameId})`);
                         } else {
-                            // Game não precisa de autenticação (rota pública)
+                            console.log(`🔄 Atualizando GAME ${game.databaseId} com player2 e status Playing`);
+
                             await axios.patch(`${LARAVEL_API}/games/${game.databaseId}/status`, {
                                 player2_user_id: data.userId, status: 'Playing'
                             }, { headers: { 'Authorization': `Bearer ${data.authToken}` } });
+
+                            console.log(`✅ GAME ${game.databaseId} atualizado`);
                         }
+                    } else {
+                        console.log(`⚠️ Faltam dados: databaseId=${game.databaseId}, authToken=${data.authToken ? 'presente' : 'ausente'}`);
                     }
-                } catch (error) { console.error("❌ Erro Laravel:", error.message); }
+                } catch (error) {
+                    console.error(`❌ Erro ao atualizar no Laravel:`, error.response?.data || error.message);
+                }
 
                 const fullDeck = createDeck();
-                const cardsPerPlayer = (game.gameType === '9') ? 9 : 3;
+                const cardsPerPlayer = (String(game.gameType) === '9') ? 9 : 3;
                 const p1Hand = fullDeck.splice(0, cardsPerPlayer);
                 const p2Hand = fullDeck.splice(0, cardsPerPlayer);
                 const trunfo = fullDeck[0];
@@ -207,6 +311,8 @@ export function serverStart(port = PORT) {
 
                 socket.join(game.id);
 
+                console.log(`🎮 Jogo iniciado com ${cardsPerPlayer} cartas por jogador`);
+
                 io.to(game.creatorId).emit("game:started", {
                     id: game.id, playMode: game.playMode, isMyTurn: true,
                     myHand: p1Hand, trunfo, deckCount: fullDeck.length, betAmount: game.betAmount
@@ -216,6 +322,8 @@ export function serverStart(port = PORT) {
                     myHand: p2Hand, trunfo, deckCount: fullDeck.length, betAmount: game.betAmount
                 });
                 io.emit("games", games.filter(g => g.status === 'Pending'));
+            } else {
+                console.log(`⚠️ Game não encontrado ou player2 já está presente`);
             }
         });
 
@@ -304,10 +412,23 @@ export function serverStart(port = PORT) {
                 game.state.table = [];
 
                 setTimeout(() => {
-                    io.to(game.id).emit("trick-result", {
-                        winnerId, pointsInTrick: points,
-                        p1Score: game.state.p1Score, p2Score: game.state.p2Score, nextTurn: winnerId
+                    io.to(game.creatorId).emit("trick-result", {
+                        winnerId,
+                        pointsInTrick: points,
+                        myScore: game.state.p1Score,       // <--- Envia o valor exato
+                        opponentScore: game.state.p2Score, // <--- Envia o valor exato
+                        nextTurn: winnerId
                     });
+
+                    if (game.player2) {
+                        io.to(game.player2).emit("trick-result", {
+                            winnerId,
+                            pointsInTrick: points,
+                            myScore: game.state.p2Score,       // <--- Envia o valor exato (invertido)
+                            opponentScore: game.state.p1Score,
+                            nextTurn: winnerId
+                        });
+                    }
 
                     if (game.state.deck.length > 0) {
                         const c1 = game.state.deck.pop();
@@ -341,7 +462,7 @@ export function serverStart(port = PORT) {
             }
         });
 
-        socket.on("player_ready_next", (data) => {
+        socket.on("player_ready_next", async (data) => {
             const game = games.find(g => String(g.id) === String(data.gameId));
             if (!game) return;
 
@@ -353,8 +474,43 @@ export function serverStart(port = PORT) {
                 game.status = 'Playing';
                 gameRoomState[game.id].readyPlayers.clear();
 
-                io.to(game.creatorId).emit("start_next_round", { gameState: { myHand: game.state.p1Hand, trunfo: roundInfo.trunfo, deckCount: roundInfo.deckCount, myScore: 0, opponentScore: 0, isMyTurn: true } });
-                io.to(game.player2).emit("start_next_round", { gameState: { myHand: game.state.p2Hand, trunfo: roundInfo.trunfo, deckCount: roundInfo.deckCount, myScore: 0, opponentScore: 0, isMyTurn: false } });
+                // Criar novo game individual na BD para a nova ronda
+                try {
+                    if (game.databaseId && game.playMode === 'match') {
+                        const gameRes = await axios.post(`${LARAVEL_API}/matches/games/start`, {
+                            match_id: game.databaseId
+                        });
+                        game.currentGameId = gameRes.data.id;
+                        console.log("✅ Novo game individual criado para ronda (ID: " + game.currentGameId + ")");
+                    }
+                } catch (error) {
+                    console.error("❌ Erro ao criar game individual:", error.message);
+                }
+
+                const matchScore = game.matchPoints ? game.matchPoints : null;
+
+                io.to(game.creatorId).emit("start_next_round", {
+                    gameState: {
+                        myHand: game.state.p1Hand,
+                        trunfo: roundInfo.trunfo,
+                        deckCount: roundInfo.deckCount,
+                        myScore: 0,
+                        opponentScore: 0,
+                        isMyTurn: true,
+                        matchScore: matchScore
+                    }
+                });
+                io.to(game.player2).emit("start_next_round", {
+                    gameState: {
+                        myHand: game.state.p2Hand,
+                        trunfo: roundInfo.trunfo,
+                        deckCount: roundInfo.deckCount,
+                        myScore: 0,
+                        opponentScore: 0,
+                        isMyTurn: false,
+                        matchScore: matchScore
+                    }
+                });
             }
         });
 

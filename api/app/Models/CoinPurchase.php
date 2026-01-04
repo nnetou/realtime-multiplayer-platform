@@ -7,11 +7,11 @@ use Illuminate\Database\Eloquent\Model;
 class CoinPurchase extends Model
 {
     protected $table = 'coin_purchases';
-    public $timestamps = false; // A tabela não tem created_at/updated_at padrão
+    public $timestamps = false;
 
     protected $fillable = [
         'user_id',
-        'coin_transaction_id', // Ligação opcional à transação interna
+        'coin_transaction_id',
         'euros',
         'purchase_datetime',
         'payment_type',

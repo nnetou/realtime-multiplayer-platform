@@ -14,23 +14,27 @@ use App\Models\CoinPurchase;
 
 class ShopController extends Controller
 {
-    /* ============================================================
-     * IMAGENS (mantêm-se)
-     * ============================================================
-     */
-
     public function getCardImage($filename)
     {
-        $path = public_path('images/cartas/playing-cards-master/' . $filename);
-        if (!File::exists($path)) {
-            $path = storage_path('app/public/images/cartas/playing-cards-master/' . $filename);
-        }
-        if (!File::exists($path)) {
-            return response()->json(['message' => 'Image not found'], 404);
-        }
-        return response()->file($path);
-    }
+        $path = public_path('images/cartas/playing-cards-master/' . trim($filename));
 
+        if (!file_exists($path)) {
+            $path = public_path('images/cartas/playing-cards-master/cardflipped.png');
+        }
+
+        if (file_exists($path) && filesize($path) === 0) {
+            return response()->json(['erro' => 'O ficheiro existe mas tem 0 bytes (está vazio).'], 500);
+        }
+
+        if (ob_get_length()) {
+            ob_clean();
+        }
+
+        return response()->file($path, [
+            'Content-Type' => 'image/png',
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+        ]);
+    }
     public function getImage($filename)
     {
         $path = public_path('storage/photos_avatars/' . $filename);
@@ -43,17 +47,11 @@ class ShopController extends Controller
         return response()->file($path);
     }
 
-    /* ============================================================
-     * SHOP INDEX (itens + pacotes de coins)
-     * ============================================================
-     */
-
     public function index(Request $request)
     {
         $user = auth('sanctum')->user();
         $customData = $user ? ($user->custom ?? []) : [];
 
-        /* ---------- AVATARS ---------- */
         $ownedAvatars = $customData['owned_avatars'] ?? [];
         if ($user && $user->photo_avatar_filename && !in_array($user->photo_avatar_filename, $ownedAvatars)) {
             $ownedAvatars[] = $user->photo_avatar_filename;
@@ -62,7 +60,8 @@ class ShopController extends Controller
         $avatars = [];
         foreach (array_slice(File::files(public_path('storage/photos_avatars')), 0, 30) as $file) {
             $filename = $file->getFilename();
-            if ($filename[0] === '.' || !str_contains($filename, '.')) continue;
+            if ($filename[0] === '.' || !str_contains($filename, '.'))
+                continue;
 
             $avatars[] = [
                 'id' => $filename,
@@ -76,10 +75,10 @@ class ShopController extends Controller
             ];
         }
 
-        /* ---------- CARTAS ---------- */
         $cardFiles = ['cardflipped.png', 'cardflipped1.png', 'cardflipped2.png', 'cardflipped3.png'];
         $ownedCards = $customData['owned_cards'] ?? [];
-        if (!in_array('cardflipped.png', $ownedCards)) $ownedCards[] = 'cardflipped.png';
+        if (!in_array('cardflipped.png', $ownedCards))
+            $ownedCards[] = 'cardflipped.png';
         $currentCard = $customData['equipped_card'] ?? 'cardflipped.png';
 
         $cards = [];
@@ -96,16 +95,16 @@ class ShopController extends Controller
             ];
         }
 
-        /* ---------- MESAS ---------- */
         $tableColors = [
             ['id' => 'green', 'hex' => '0xFF1E8449', 'name' => 'Clássico'],
-            ['id' => 'red',   'hex' => '0xFF922B21', 'name' => 'Veludo Vermelho'],
-            ['id' => 'blue',  'hex' => '0xFF1F618D', 'name' => 'Azul Oceano'],
+            ['id' => 'red', 'hex' => '0xFF922B21', 'name' => 'Veludo Vermelho'],
+            ['id' => 'blue', 'hex' => '0xFF1F618D', 'name' => 'Azul Oceano'],
             ['id' => 'black', 'hex' => '0xFF17202A', 'name' => 'Preto Luxo'],
         ];
 
         $ownedTables = $customData['owned_tables'] ?? [];
-        if (!in_array('green', $ownedTables)) $ownedTables[] = 'green';
+        if (!in_array('green', $ownedTables))
+            $ownedTables[] = 'green';
         $currentTable = $customData['equipped_table'] ?? 'green';
 
         $tables = [];
@@ -122,14 +121,13 @@ class ShopController extends Controller
             ];
         }
 
-        /* ---------- PACOTES DE COINS ---------- */
         $coins = [
-            ['id' => '1',  'type' => 'coins', 'name' => '1 Euro',  'price' => 1,  'coins_amount' => 10],
-            ['id' => '5',  'type' => 'coins', 'name' => '5 Euros', 'price' => 5,  'coins_amount' => 50],
-            ['id' => '10', 'type' => 'coins', 'name' => '10 Euros','price' => 10, 'coins_amount' => 100],
-            ['id' => '20', 'type' => 'coins', 'name' => '20 Euros','price' => 20, 'coins_amount' => 200],
-            ['id' => '50', 'type' => 'coins', 'name' => '50 Euros','price' => 50, 'coins_amount' => 500],
-            ['id' => '99', 'type' => 'coins', 'name' => '99 Euros','price' => 99, 'coins_amount' => 990],
+            ['id' => '1', 'type' => 'coins', 'name' => '1 Euro', 'price' => 1, 'coins_amount' => 10],
+            ['id' => '5', 'type' => 'coins', 'name' => '5 Euros', 'price' => 5, 'coins_amount' => 50],
+            ['id' => '10', 'type' => 'coins', 'name' => '10 Euros', 'price' => 10, 'coins_amount' => 100],
+            ['id' => '20', 'type' => 'coins', 'name' => '20 Euros', 'price' => 20, 'coins_amount' => 200],
+            ['id' => '50', 'type' => 'coins', 'name' => '50 Euros', 'price' => 50, 'coins_amount' => 500],
+            ['id' => '99', 'type' => 'coins', 'name' => '99 Euros', 'price' => 99, 'coins_amount' => 990],
         ];
 
         return response()->json([
@@ -140,11 +138,6 @@ class ShopController extends Controller
         ]);
     }
 
-    /* ============================================================
-     * COMPRA DE ITENS (com coins)
-     * ============================================================
-     */
-
     public function buy(Request $request)
     {
         $request->validate([
@@ -153,7 +146,8 @@ class ShopController extends Controller
         ]);
 
         $user = $request->user();
-        if (!$user) return response()->json(['message' => 'Unauthorized'], 401);
+        if (!$user)
+            return response()->json(['message' => 'Unauthorized'], 401);
 
         $itemId = $request->id;
         $type = $request->type;
@@ -166,7 +160,8 @@ class ShopController extends Controller
         return DB::transaction(function () use ($user, $itemId, $type, $price) {
 
             $customData = $user->custom ?? [];
-            if (!is_array($customData)) $customData = [];
+            if (!is_array($customData))
+                $customData = [];
 
             $ownedKey = match ($type) {
                 'avatar' => 'owned_avatars',
@@ -206,11 +201,6 @@ class ShopController extends Controller
         });
     }
 
-    /* ============================================================
-     * COMPRA DE COINS (Payment Gateway)
-     * ============================================================
-     */
-
     public function purchase(Request $request)
     {
         $user = $request->user();
@@ -228,7 +218,6 @@ class ShopController extends Controller
         $method = $validated['payment_method'];
         $reference = $validated['payment_reference'];
 
-        /* ---------- Validação específica ---------- */
         $patterns = [
             'MBWAY' => '/^\d{9}$/',
             'PAYPAL' => '/^[^\s@]+@[^\s@]+\.[^\s@]+$/',
@@ -241,17 +230,16 @@ class ShopController extends Controller
             return response()->json(['message' => 'Referência inválida'], 422);
         }
 
-        /* ---------- Payment Gateway ---------- */
         $gatewayResponse = Http::withOptions([
-            'verify' => false // Disable SSL verification for development
+            'verify' => false
         ])->post(
-            'https://dad-payments-api.vercel.app/api/debit',
-            [
-                'type' => $method,
-                'reference' => $reference,
-                'value' => $euros,
-            ]
-        );
+                'https://dad-payments-api.vercel.app/api/debit',
+                [
+                    'type' => $method,
+                    'reference' => $reference,
+                    'value' => $euros,
+                ]
+            );
 
         if ($gatewayResponse->failed()) {
             return response()->json([
@@ -296,10 +284,6 @@ class ShopController extends Controller
         });
     }
 
-    /* ============================================================
-     * EQUIPAR ITENS
-     * ============================================================
-     */
 
     public function equip(Request $request)
     {
@@ -309,7 +293,8 @@ class ShopController extends Controller
         ]);
 
         $user = $request->user();
-        if (!$user) return response()->json(['message' => 'Unauthorized'], 401);
+        if (!$user)
+            return response()->json(['message' => 'Unauthorized'], 401);
 
         $itemId = $request->id;
         $type = $request->type;

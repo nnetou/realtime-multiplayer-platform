@@ -10,7 +10,11 @@
               class="bg-green-600 hover:bg-green-700"
               :disabled="gameStore.myGames && gameStore.myGames.length > 0"
             >
-              {{ gameStore.myGames && gameStore.myGames.length > 0 ? 'Já tens uma sala' : 'Criar Nova Sala' }}
+              {{
+                gameStore.myGames && gameStore.myGames.length > 0
+                  ? "Já tens uma sala"
+                  : "Criar Nova Sala"
+              }}
             </Button>
           </CardTitle>
         </CardHeader>
@@ -52,9 +56,9 @@
               </p>
             </div>
             <div class="space-x-2">
-              <Button 
-                @click="cancelGame(game)" 
-                variant="destructive" 
+              <Button
+                @click="cancelGame(game)"
+                variant="destructive"
                 size="sm"
                 class="transition-all duration-200 hover:scale-105 hover:shadow-lg"
               >
@@ -104,11 +108,19 @@
             >
               <div>
                 <p class="font-bold text-lg flex items-center gap-2">
-                  Sala de {{ game.player1Name || "Anónimo" }}
+                  Sala de {{ game.creatorName || "Anónimo" }}
                 </p>
-                <div class="flex gap-2 mt-2">
+                <div class="flex gap-2 mt-2 flex-wrap">
                   <Badge class="bg-indigo-600 hover:bg-indigo-700"
                     >Bisca de {{ game.gameType || "3" }}</Badge
+                  >
+                  <Badge
+                    v-if="game.playMode === 'match'"
+                    class="bg-purple-600 hover:bg-purple-700"
+                    >Match</Badge
+                  >
+                  <Badge v-else class="bg-blue-600 hover:bg-blue-700"
+                    >Single Game</Badge
                   >
                   <Badge
                     v-if="game.betAmount > 0"

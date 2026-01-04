@@ -160,11 +160,11 @@ const router = useRouter();
 const route = useRoute();
 const serverBaseURL = inject("serverBaseURL"); // <--- INJETAR BASE URL
 
-// --- LÓGICA DE CUSTOMIZAÇÃO (NOVO) ---
 const cardBackUrl = computed(() => {
-  const filename = authStore.user?.custom?.equipped_card || "cardflipped.png";
-  // Usa a rota proxy da API para buscar a imagem correta
-  return `${serverBaseURL}/api/card-image-proxy/${filename}`;
+  const cardName = authStore.user?.custom?.equipped_card || "cardflipped.png";
+  return `${serverBaseURL}/api/card-image-proxy/${cardName}?v=${
+    authStore.user?.id || 1
+  }`;
 });
 
 const tableColor = computed(() => {

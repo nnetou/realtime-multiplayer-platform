@@ -7,16 +7,10 @@ export const useAPIStore = defineStore('api', () => {
 
     const token = ref(sessionStorage.getItem('token'))
 
-    /* ===============================
-       CONFIGURAÇÃO GLOBAL DO TOKEN
-       =============================== */
     if (token.value) {
         axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
     }
 
-    /* ===============================
-       MÉTODOS GENÉRICOS (OBRIGATÓRIO)
-       =============================== */
     const get = (url) => {
         return axios.get(`${API_BASE_URL}${url}`)
     }
@@ -25,9 +19,6 @@ export const useAPIStore = defineStore('api', () => {
         return axios.post(`${API_BASE_URL}${url}`, data)
     }
 
-    /* ===============================
-       AUTH
-       =============================== */
     const postLogin = async (credentials) => {
         const response = await axios.post(`${API_BASE_URL}/login`, credentials)
         token.value = response.data.token
@@ -42,9 +33,6 @@ export const useAPIStore = defineStore('api', () => {
         delete axios.defaults.headers.common['Authorization']
     }
 
-    /* ===============================
-       USERS
-       =============================== */
     const getAuthUser = () => {
         return axios.get(`${API_BASE_URL}/users/me`)
     }
@@ -57,9 +45,6 @@ export const useAPIStore = defineStore('api', () => {
         })
     }
 
-    /* ===============================
-       JOGOS / PARTIDAS
-       =============================== */
     const postGame = (game) => {
         return axios.post(`${API_BASE_URL}/matches`, game)
     }
@@ -68,15 +53,10 @@ export const useAPIStore = defineStore('api', () => {
         return axios.get(`${API_BASE_URL}/games`)
     }
 
-    /* ===============================
-       EXPORT
-       =============================== */
     return {
-        // genéricos
         get,
         post,
 
-        // auth
         postLogin,
         postLogout,
 

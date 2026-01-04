@@ -8,9 +8,9 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use App\Models\User;
 use Illuminate\Validation\ValidationException;
-use App\Models\CoinTransaction; // Necessário para o bónus
-use App\Models\CoinTransactionType; // Necessário para o tipo de transação
-use Illuminate\Support\Facades\DB; // Necessário para transação de DB
+use App\Models\CoinTransaction;
+use App\Models\CoinTransactionType;
+use Illuminate\Support\Facades\DB;
 
 class AuthController extends Controller
 {
@@ -83,7 +83,6 @@ class AuthController extends Controller
     }
 
 
-    // ... (Mantenho logout, updateProfile, getAchievements, deleteAccount como estavam) ...
     public function logout(Request $request)
     {
         $request->user()->currentAccessToken()->delete();
@@ -117,7 +116,6 @@ class AuthController extends Controller
         }
 
         if ($request->hasFile('photo')) {
-            // Delete old photo if exists
             if ($user->photo_avatar_filename && $user->photo_avatar_filename !== 'anonymous.png') {
                 \Storage::disk('public')->delete('photos_avatars/' . $user->photo_avatar_filename);
             }
@@ -150,7 +148,6 @@ class AuthController extends Controller
             'password' => 'required|string',
         ]);
 
-        // Prevent admins from deleting their own accounts
         if ($user->type === 'A') {
             return response()->json(['error' => 'Administrators cannot delete their own accounts'], 403);
         }
@@ -159,10 +156,8 @@ class AuthController extends Controller
             return response()->json(['error' => 'Incorrect password'], 422);
         }
 
-        // Revoke all tokens before deleting
         $user->tokens()->delete();
 
-        // Soft delete the user
         $user->delete();
 
         return response()->json(['message' => 'Account deleted successfully']);
